@@ -25,6 +25,7 @@ export const BHOPAL_WARDS = [
   'Ward 7 - Govindpura', 'Ward 8 - Berasia Road', 'Ward 9 - Kolar Road',
   'Ward 10 - Bairagarh', 'Ward 11 - Misrod', 'Ward 12 - Ayodhya Bypass',
   'Ward 13 - Indrapuri', 'Ward 14 - TT Nagar', 'Ward 15 - Shahpura',
+  'Ward 16 - Awadhpuri', 'Ward 17 - Oriental Institute of Science and Technology'
 ]
 
 // Gamification point values

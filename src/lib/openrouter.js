@@ -1,6 +1,6 @@
 const OPENROUTER_API_KEY = import.meta.env.VITE_OPENROUTER_API_KEY
 const OPENROUTER_BASE_URL = 'https://openrouter.ai/api/v1'
-const MODEL = 'anthropic/claude-3.5-sonnet'
+const MODEL = 'google/gemini-2.0-flash-exp:free'
 
 export const NEXORA_SYSTEM_PROMPT = `You are Nexora, the AI assistant for InfraNaut AI — a smart city platform focused on Bhopal, India. You are helpful, concise, civic-minded, and warm. You help citizens with city-related queries, infrastructure issues, eco-friendly routes, and urban analytics. Always frame answers to benefit the community. Keep responses focused and actionable. Use Markdown formatting where helpful.`
 

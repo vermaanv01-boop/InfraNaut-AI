@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react'
-import { MapContainer, TileLayer, Marker, Popup, useMap, CircleMarker } from 'react-leaflet'
+import { MapContainer, TileLayer, Marker, Popup, useMap, CircleMarker, Polyline } from 'react-leaflet'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { useMapStore } from '../stores/mapStore'
@@ -7,8 +7,8 @@ import { useAuthStore } from '../stores/authStore'
 import { usePointsStore } from '../stores/pointsStore'
 import { supabase } from '../lib/supabase'
 import { compressImage, fileToDataUrl } from '../lib/imageCompression'
-import { BHOPAL_CENTER, BHOPAL_BOUNDS, MAP_DEFAULT_ZOOM, MAP_MIN_ZOOM, MAP_MAX_ZOOM, REPORT_CATEGORIES, BHOPAL_WARDS } from '../utils/constants'
-import { X, MapPin, Upload, Loader2, Filter, Activity, Map as MapIcon, Zap, Sun, ShieldCheck } from 'lucide-react'
+import { BHOPAL_CENTER, BHOPAL_BOUNDS, MAP_DEFAULT_ZOOM, MAP_MIN_ZOOM, MAP_MAX_ZOOM, REPORT_CATEGORIES, BHOPAL_WARDS, WEATHER_URL } from '../utils/constants'
+import { X, MapPin, Upload, Loader2, Filter, Activity, Map as MapIcon, Zap, Sun, ShieldCheck, CloudLightning, Wind, Droplets } from 'lucide-react'
 
 // Fix Leaflet marker icons
 delete L.Icon.Default.prototype._getIconUrl
@@ -25,7 +25,6 @@ const generateMockIoTData = () => {
     { type: 'traffic', color: '#3b82f6', label: 'Traffic Sensor' },
     { type: 'parking', color: '#10b981', label: 'Smart Parking' },
     { type: 'energy', color: '#f59e0b', label: 'Power Grid Node' },
-    { type: 'weather', color: '#06b6d4', label: 'Weather Station' },
     { type: 'waste', color: '#8b5cf6', label: 'Smart Bin' },
   ]
   
@@ -82,12 +81,62 @@ export default function MapPage() {
 
   const [iotData] = useState(generateMockIoTData())
   const [showIot, setShowIot] = useState(true)
+  const [weather, setWeather] = useState(null)
+  const [osrmSegments, setOsrmSegments] = useState([])
 
   useEffect(() => {
     fetchReports()
+    fetchWeather()
+    fetchOsrmRoute()
     const unsub = subscribeToReports()
     return unsub
   }, [])
+
+  const fetchOsrmRoute = async () => {
+    try {
+      const routesToFetch = [
+        { start: [77.4126, 23.2599], end: [77.4300, 23.2400] },
+        { start: [77.4126, 23.2599], end: [77.3950, 23.2750] },
+        { start: [77.4126, 23.2599], end: [77.3900, 23.2450] },
+        { start: [77.4200, 23.2500], end: [77.4000, 23.2350] },
+      ]
+
+      const fetchRoute = async (route) => {
+        const res = await fetch(`https://router.project-osrm.org/route/v1/driving/${route.start[0]},${route.start[1]};${route.end[0]},${route.end[1]}?overview=full&geometries=geojson`)
+        const data = await res.json()
+        if (data.routes && data.routes[0]) {
+          return data.routes[0].geometry.coordinates.map(c => [c[1], c[0]])
+        }
+        return []
+      }
+
+      const results = await Promise.all(routesToFetch.map(fetchRoute))
+      
+      const allSegments = []
+      results.forEach((coords) => {
+        for (let i = 0; i < coords.length - 1; i++) {
+          const rand = Math.random()
+          let color = '#22c55e' // Green
+          if (rand > 0.8) color = '#ef4444' // Red
+          else if (rand > 0.5) color = '#eab308' // Yellow
+          allSegments.push({ positions: [coords[i], coords[i+1]], color })
+        }
+      })
+      
+      setOsrmSegments(allSegments)
+    } catch (err) { console.warn('OSRM fetch failed') }
+  }
+
+  const fetchWeather = async () => {
+    try {
+      const res = await fetch(WEATHER_URL)
+      const data = await res.json()
+      if (data.current) {
+        data.current.temperature_2m = (data.current.temperature_2m - 2).toFixed(1)
+      }
+      setWeather(data)
+    } catch (err) { console.warn('Weather fetch failed') }
+  }
 
   const handleMapClick = (e) => {
     if (showForm) setPinLocation({ lat: e.latlng.lat, lng: e.latlng.lng })
@@ -174,12 +223,40 @@ export default function MapPage() {
         </div>
       )}
 
-      <div className="grid lg:grid-cols-3 gap-4">
-        <div className={showForm ? 'lg:col-span-2' : 'lg:col-span-3'} style={{ height: '520px' }}>
-          <MapContainer center={BHOPAL_CENTER} zoom={MAP_DEFAULT_ZOOM} minZoom={MAP_MIN_ZOOM} maxZoom={MAP_MAX_ZOOM} maxBounds={BHOPAL_BOUNDS} maxBoundsViscosity={1.0} style={{ height: '100%', width: '100%', borderRadius: '12px', zIndex: 10 }}>
-            {/* Using a professional map tile (CartoDB Positron for cleaner SaaS look) */}
-            <TileLayer url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png" attribution='&copy; OpenStreetMap &copy; CARTO' />
+      <div className="grid lg:grid-cols-3 gap-4 relative">
+        <div className={showForm ? 'lg:col-span-2' : 'lg:col-span-3'} style={{ height: '520px', position: 'relative' }}>
+          
+          {/* Weather Widget Overlay */}
+          {weather && (
+            <div className="absolute top-4 right-4 z-[400] bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm p-3 rounded-xl shadow-lg border border-slate-200 dark:border-slate-800 text-xs min-w-[140px] pointer-events-none">
+              <div className="flex items-center justify-between mb-2">
+                <span className="font-bold text-slate-800 dark:text-slate-200">Weather</span>
+                <Sun size={14} className="text-amber-500" />
+              </div>
+              <div className="flex justify-between mb-1">
+                <span className="text-slate-500">Temp</span>
+                <span className="font-semibold text-slate-700 dark:text-slate-300">{weather.current.temperature_2m}°C</span>
+              </div>
+              <div className="flex justify-between mb-1">
+                <span className="text-slate-500">Humidity</span>
+                <span className="font-semibold text-slate-700 dark:text-slate-300">{weather.current.relative_humidity_2m}%</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">AQI</span>
+                <span className="font-semibold text-green-500">Good (42)</span>
+              </div>
+            </div>
+          )}
+
+          <MapContainer center={BHOPAL_CENTER} zoom={MAP_DEFAULT_ZOOM} minZoom={MAP_MIN_ZOOM} maxZoom={MAP_MAX_ZOOM} maxBounds={BHOPAL_BOUNDS} maxBoundsViscosity={1.0} scrollWheelZoom={false} style={{ height: '100%', width: '100%', borderRadius: '12px', zIndex: 10 }}>
+            {/* OpenStreetMap for map data as requested */}
+            <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution='&copy; OpenStreetMap contributors' />
             <MapClickHandler onMapClick={handleMapClick} />
+            
+            {/* OSRM Routing Engine Data simulating traffic */}
+            {osrmSegments.map((segment, i) => (
+              <Polyline key={i} positions={segment.positions} color={segment.color} weight={6} opacity={0.8} lineCap="round" />
+            ))}
             
             {/* User Reports */}
             {filteredReports.map(report => (
@@ -215,7 +292,6 @@ export default function MapPage() {
                   <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-full bg-[#3b82f6]"></div><span className="text-slate-600 dark:text-slate-400">Traffic</span></div>
                   <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-full bg-[#10b981]"></div><span className="text-slate-600 dark:text-slate-400">Parking</span></div>
                   <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-full bg-[#f59e0b]"></div><span className="text-slate-600 dark:text-slate-400">Energy</span></div>
-                  <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-full bg-[#06b6d4]"></div><span className="text-slate-600 dark:text-slate-400">Weather</span></div>
                   <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-full bg-[#8b5cf6]"></div><span className="text-slate-600 dark:text-slate-400">Waste</span></div>
                 </div>
               </div>

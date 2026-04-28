@@ -8,6 +8,7 @@ import Dashboard from './pages/Dashboard'
 import MapPage from './pages/MapPage'
 import ChatPage from './pages/ChatPage'
 import AnalyticsPage from './pages/AnalyticsPage'
+import NexoraPage from './pages/NexoraPage'
 
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuthStore()
@@ -41,6 +42,7 @@ export default function App() {
           <Route index element={<Dashboard />} />
           <Route path="map" element={<MapPage />} />
           <Route path="chat" element={<ChatPage />} />
+          <Route path="nexora" element={<NexoraPage />} />
           <Route path="analytics" element={<AnalyticsPage />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />

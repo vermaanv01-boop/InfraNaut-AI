@@ -1,5 +1,5 @@
 import { Outlet, NavLink, useNavigate } from 'react-router-dom'
-import { LayoutDashboard, Map as MapIcon, MessageSquare, LineChart, Route, Trophy, User, LogOut, Sun, Moon } from 'lucide-react'
+import { LayoutDashboard, Map as MapIcon, MessageSquare, LineChart, Route, Trophy, User, LogOut, Sun, Moon, Bot } from 'lucide-react'
 import { useAuthStore } from '../../stores/authStore'
 import { useState, useEffect } from 'react'
 
@@ -7,6 +7,7 @@ const NAV_ITEMS = [
   { path: '/app', icon: LayoutDashboard, label: 'Dashboard' },
   { path: '/app/map', icon: MapIcon, label: 'City Map' },
   { path: '/app/chat', icon: MessageSquare, label: 'Community' },
+  { path: '/app/nexora', icon: Bot, label: 'Nexora AI' },
   { path: '/app/analytics', icon: LineChart, label: 'Analytics' },
 ]
 

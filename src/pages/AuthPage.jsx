@@ -1,11 +1,12 @@
 import { useState } from 'react'
-import { Navigate, Link } from 'react-router-dom'
+import { Navigate, Link, useSearchParams } from 'react-router-dom'
 import { useAuthStore } from '../stores/authStore'
 import { BHOPAL_WARDS } from '../utils/constants'
 import { Eye, EyeOff, Loader2, ArrowLeft } from 'lucide-react'
 
 export default function AuthPage() {
-  const [mode, setMode] = useState('signin')
+  const [searchParams] = useSearchParams()
+  const [mode, setMode] = useState(searchParams.get('mode') === 'signup' ? 'signup' : 'signin')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [username, setUsername] = useState('')
