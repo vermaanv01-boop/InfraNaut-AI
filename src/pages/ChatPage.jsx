@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useAuthStore } from '../stores/authStore'
 import { usePointsStore } from '../stores/pointsStore'
+import { useCityStore } from '../stores/cityStore'
 import { supabase } from '../lib/supabase'
 import { nexoraCompletion } from '../lib/openrouter'
 import NexoraAvatar from '../components/nexora/NexoraAvatar'
@@ -53,6 +54,7 @@ function ChatMessage({ msg, currentUserId }) {
 export default function ChatPage() {
   const { user, profile } = useAuthStore()
   const { awardPoints } = usePointsStore()
+  const getCityContext = useCityStore(s => s.getCityContext)
   const [rooms, setRooms] = useState(DEFAULT_ROOMS)
   const [activeRoom, setActiveRoom] = useState(DEFAULT_ROOMS[0].id)
   const [messages, setMessages] = useState([])
@@ -94,7 +96,8 @@ export default function ChatPage() {
       if (content.toLowerCase().includes('@nexora')) {
         setNexoraTyping(true)
         const contextMsg = messages.slice(-5).map(m => `${m.is_nexora ? 'Nexora' : m.profiles?.display_name || 'User'}: ${m.content}`).join('\n')
-        const reply = await nexoraCompletion([{ role: 'user', content: `You are in the "${activeRoom}" community chat room in Bhopal. Recent chat:\n${contextMsg}\nUser asked: ${content.replace('@nexora', '').trim()}\nRespond briefly and helpfully.` }], 300)
+        const cityContext = getCityContext()
+        const reply = await nexoraCompletion([{ role: 'user', content: `You are in the "${activeRoom}" community chat room in Bhopal. Recent chat:\n${contextMsg}\nUser asked: ${content.replace('@nexora', '').trim()}\nRespond briefly and helpfully using the live city data provided.` }], 300, cityContext)
         await supabase.from('chat_messages').insert({ room_id: activeRoom, user_id: null, content: reply, is_nexora: true })
         setNexoraTyping(false)
       }

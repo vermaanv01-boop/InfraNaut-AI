@@ -1,16 +1,20 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useAuthStore } from '../stores/authStore'
 import { usePointsStore } from '../stores/pointsStore'
+import { useCityStore } from '../stores/cityStore'
 import { streamNexoraResponse } from '../lib/openrouter'
 import { supabase } from '../lib/supabase'
 import NexoraAvatar from '../components/nexora/NexoraAvatar'
 import NexoraMessage from '../components/nexora/NexoraMessage'
 import UserMessage from '../components/nexora/UserMessage'
-import { Send, Plus, Search, MessageSquare, Loader2, X } from 'lucide-react'
+import { Send, Plus, Search, MessageSquare, Loader2 } from 'lucide-react'
 
 export default function NexoraPage() {
   const { user, profile } = useAuthStore()
   const { awardPoints } = usePointsStore()
+  const getCityContext = useCityStore(s => s.getCityContext)
+  const initCity = useCityStore(s => s.initCity)
+  const weather = useCityStore(s => s.weather)
 
   const [conversations, setConversations] = useState([])
   const [activeConvId, setActiveConvId] = useState(null)
@@ -24,7 +28,12 @@ export default function NexoraPage() {
   const abortRef = useRef(null)
   const inputRef = useRef(null)
 
-  useEffect(() => { fetchConversations() }, [user])
+  useEffect(() => {
+    fetchConversations()
+    // Ensure city data is loaded for context
+    if (!weather) initCity()
+  }, [user])
+
   useEffect(() => { scrollToBottom() }, [messages, streamContent])
 
   const scrollToBottom = () => {
@@ -93,6 +102,9 @@ export default function NexoraPage() {
     // Build history for API
     const history = newMessages.map(m => ({ role: m.role, content: m.content }))
 
+    // Get live city context for AI
+    const cityContext = getCityContext()
+
     // Stream response
     setStreaming(true)
     setStreamContent('')
@@ -125,7 +137,8 @@ export default function NexoraPage() {
 
           fetchConversations()
         },
-        abortRef.current.signal
+        abortRef.current.signal,
+        cityContext
       )
     } catch (err) {
       if (err.name !== 'AbortError') {
@@ -138,7 +151,7 @@ export default function NexoraPage() {
       setStreamContent('')
       setStreaming(false)
     }
-  }, [input, streaming, activeConvId, messages, user, awardPoints])
+  }, [input, streaming, activeConvId, messages, user, awardPoints, getCityContext])
 
   const handleKey = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage() }
@@ -149,15 +162,15 @@ export default function NexoraPage() {
   )
 
   return (
-    <div className="flex h-[calc(100vh-48px)] -m-6 overflow-hidden rounded-xl" style={{ border: '1px solid rgba(20,184,166,0.1)' }}>
+    <div className="flex h-[calc(100vh-48px)] -m-4 md:-m-8 overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800">
       {/* Sidebar */}
-      <div className="w-64 flex flex-col border-r border-slate-800/60 bg-slate-900/50 flex-shrink-0">
-        <div className="p-3 border-b border-slate-800/60">
+      <div className="w-64 flex flex-col border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/50 flex-shrink-0 hidden md:flex">
+        <div className="p-3 border-b border-slate-200 dark:border-slate-800">
           <button onClick={newConversation} className="btn-primary w-full justify-center text-xs py-2">
             <Plus size={14} /> New Chat
           </button>
           <div className="relative mt-2">
-            <Search size={12} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+            <Search size={12} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <input
               className="inp pl-8 text-xs py-2"
               placeholder="Search conversations..."
@@ -168,22 +181,22 @@ export default function NexoraPage() {
         </div>
         <div className="flex-1 overflow-y-auto p-2 space-y-1">
           {filteredConvs.length === 0 ? (
-            <p className="text-xs text-slate-500 text-center py-8 px-3">No conversations yet. Start chatting with Nexora!</p>
+            <p className="text-xs text-slate-400 text-center py-8 px-3">No conversations yet. Start chatting with Nexora!</p>
           ) : filteredConvs.map(conv => (
             <button
               key={conv.id}
               onClick={() => loadConversation(conv.id)}
               className={`w-full text-left px-3 py-2.5 rounded-lg text-xs transition-all ${
                 activeConvId === conv.id
-                  ? 'bg-teal-500/15 text-teal-300 border border-teal-500/20'
-                  : 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200'
+                  ? 'bg-primary-50 dark:bg-primary-900/20 text-primary-700 dark:text-primary-300 border border-primary-200 dark:border-primary-800/30'
+                  : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/60 hover:text-slate-900 dark:hover:text-slate-200'
               }`}
             >
               <div className="flex items-start gap-2">
                 <MessageSquare size={11} className="mt-0.5 flex-shrink-0 opacity-60" />
                 <span className="truncate leading-relaxed">{conv.title || 'Untitled'}</span>
               </div>
-              <div className="text-[9px] text-slate-600 mt-1 ml-4">
+              <div className="text-[9px] text-slate-400 mt-1 ml-4">
                 {new Date(conv.updated_at || conv.created_at).toLocaleDateString()}
               </div>
             </button>
@@ -192,14 +205,14 @@ export default function NexoraPage() {
       </div>
 
       {/* Chat area */}
-      <div className="flex-1 flex flex-col bg-slate-950/30">
+      <div className="flex-1 flex flex-col bg-white dark:bg-slate-950/30">
         {/* Header */}
-        <div className="flex items-center gap-3 px-5 py-3.5 border-b border-slate-800/60 bg-slate-900/30">
+        <div className="flex items-center gap-3 px-5 py-3.5 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/30">
           <NexoraAvatar size={34} glow={streaming} />
           <div>
-            <div className="text-sm font-semibold text-white">Nexora</div>
+            <div className="text-sm font-semibold text-slate-900 dark:text-white">Nexora</div>
             <div className="text-[10px] text-slate-500">
-              {streaming ? <span className="text-teal-400 animate-pulse">Generating response...</span> : 'City Intelligence Assistant · Powered by Claude'}
+              {streaming ? <span className="text-primary-500 animate-pulse">Generating response...</span> : 'City Intelligence Assistant · Context-Aware AI'}
             </div>
           </div>
         </div>
@@ -208,25 +221,25 @@ export default function NexoraPage() {
         <div className="flex-1 overflow-y-auto p-5 space-y-5">
           {loading ? (
             <div className="flex justify-center py-12">
-              <Loader2 size={24} className="text-teal-500 animate-spin" />
+              <Loader2 size={24} className="text-primary-500 animate-spin" />
             </div>
           ) : messages.length === 0 && !streaming ? (
             <div className="flex flex-col items-center justify-center h-full text-center gap-4 py-16">
               <NexoraAvatar size={56} glow />
               <div>
-                <h2 className="text-xl font-bold text-white mb-2">Hi, I'm Nexora</h2>
-                <p className="text-slate-400 text-sm max-w-sm">Your city intelligence assistant. Ask me about Bhopal's infrastructure, eco-friendly routes, or any city-related queries.</p>
+                <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-2">Hi, I'm Nexora</h2>
+                <p className="text-slate-500 text-sm max-w-sm">Your city intelligence assistant with real-time Bhopal data. Ask about parking, traffic, weather, or any city query.</p>
               </div>
               <div className="grid grid-cols-1 gap-2 w-full max-w-sm mt-2">
                 {[
-                  'What are the top reported issues in Bhopal this week?',
-                  'Suggest an eco-friendly route from New Market to Arera Colony',
-                  'What does the garbage collection schedule look like?',
+                  'What is the best parking near DB Mall right now?',
+                  'What is the current traffic situation in Bhopal?',
+                  'Show me today\'s weather and AQI status',
                 ].map(q => (
                   <button
                     key={q}
                     onClick={() => { setInput(q); inputRef.current?.focus() }}
-                    className="text-left text-xs text-slate-400 bg-slate-800/50 hover:bg-slate-800 border border-slate-700/50 hover:border-teal-700/40 rounded-lg px-3 py-2.5 transition-all"
+                    className="text-left text-xs text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-800/50 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700/50 hover:border-primary-300 dark:hover:border-primary-700/40 rounded-lg px-3 py-2.5 transition-all"
                   >
                     {q}
                   </button>
@@ -247,7 +260,7 @@ export default function NexoraPage() {
         </div>
 
         {/* Input */}
-        <div className="p-4 border-t border-slate-800/60 bg-slate-900/30">
+        <div className="p-4 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/30">
           <div className="flex gap-3 items-end">
             <textarea
               ref={inputRef}
@@ -268,7 +281,7 @@ export default function NexoraPage() {
               {streaming ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
             </button>
           </div>
-          <p className="text-[10px] text-slate-600 mt-2 text-center">Nexora may make mistakes. Verify important city information.</p>
+          <p className="text-[10px] text-slate-400 mt-2 text-center">Nexora uses live city data. Verify important information independently.</p>
         </div>
       </div>
     </div>

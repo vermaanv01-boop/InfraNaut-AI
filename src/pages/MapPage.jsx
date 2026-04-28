@@ -1,14 +1,22 @@
 import { useEffect, useState, useRef } from 'react'
-import { MapContainer, TileLayer, Marker, Popup, useMap, CircleMarker, Polyline } from 'react-leaflet'
+import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { useMapStore } from '../stores/mapStore'
 import { useAuthStore } from '../stores/authStore'
 import { usePointsStore } from '../stores/pointsStore'
+import { useCityStore } from '../stores/cityStore'
 import { supabase } from '../lib/supabase'
 import { compressImage, fileToDataUrl } from '../lib/imageCompression'
-import { BHOPAL_CENTER, BHOPAL_BOUNDS, MAP_DEFAULT_ZOOM, MAP_MIN_ZOOM, MAP_MAX_ZOOM, REPORT_CATEGORIES, BHOPAL_WARDS, WEATHER_URL } from '../utils/constants'
-import { X, MapPin, Upload, Loader2, Filter, Activity, Map as MapIcon, Zap, Sun, ShieldCheck, CloudLightning, Wind, Droplets } from 'lucide-react'
+import { BHOPAL_CENTER, BHOPAL_BOUNDS, MAP_DEFAULT_ZOOM, MAP_MIN_ZOOM, MAP_MAX_ZOOM, REPORT_CATEGORIES, BHOPAL_WARDS } from '../utils/constants'
+import { X, MapPin, Upload, Loader2, Sun } from 'lucide-react'
+
+// Map layer components
+import TrafficLayer from '../components/map/TrafficLayer'
+import ParkingLayer from '../components/map/ParkingLayer'
+import WasteLayer from '../components/map/WasteLayer'
+import EnergyLayer from '../components/map/EnergyLayer'
+import LayerControls from '../components/map/LayerControls'
 
 // Fix Leaflet marker icons
 delete L.Icon.Default.prototype._getIconUrl
@@ -17,33 +25,6 @@ L.Icon.Default.mergeOptions({
   iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon.png',
   shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
 })
-
-// MOCK IOT DATA GENERATOR
-const generateMockIoTData = () => {
-  const data = []
-  const types = [
-    { type: 'traffic', color: '#3b82f6', label: 'Traffic Sensor' },
-    { type: 'parking', color: '#10b981', label: 'Smart Parking' },
-    { type: 'energy', color: '#f59e0b', label: 'Power Grid Node' },
-    { type: 'waste', color: '#8b5cf6', label: 'Smart Bin' },
-  ]
-  
-  types.forEach(t => {
-    for(let i=0; i<8; i++) {
-      data.push({
-        id: `iot-${t.type}-${i}`,
-        type: t.type,
-        color: t.color,
-        label: t.label,
-        lat: BHOPAL_CENTER[0] + (Math.random() - 0.5) * 0.1,
-        lng: BHOPAL_CENTER[1] + (Math.random() - 0.5) * 0.1,
-        status: Math.random() > 0.8 ? 'Warning' : 'Normal',
-        value: Math.floor(Math.random() * 100)
-      })
-    }
-  })
-  return data
-}
 
 function createCategoryIcon(category) {
   const cat = REPORT_CATEGORIES.find(c => c.id === category) || REPORT_CATEGORIES[5]
@@ -66,10 +47,14 @@ function MapClickHandler({ onMapClick }) {
 }
 
 export default function MapPage() {
-  const { user, profile } = useAuthStore()
+  const { user } = useAuthStore()
   const { reports, fetchReports, addReport, filters, setFilters, subscribeToReports } = useMapStore()
   const { awardPoints } = usePointsStore()
-  
+  const layers = useCityStore(s => s.layers)
+  const weather = useCityStore(s => s.weather)
+  const initCity = useCityStore(s => s.initCity)
+  const destroyCity = useCityStore(s => s.destroyCity)
+
   const [showForm, setShowForm] = useState(false)
   const [pinLocation, setPinLocation] = useState(null)
   const [form, setForm] = useState({ category: 'garbage', description: '', zone: BHOPAL_WARDS[0] })
@@ -79,105 +64,66 @@ export default function MapPage() {
   const [error, setError] = useState('')
   const fileRef = useRef()
 
-  const [iotData] = useState(generateMockIoTData())
-  const [showIot, setShowIot] = useState(true)
-  const [weather, setWeather] = useState(null)
-  const [osrmSegments, setOsrmSegments] = useState([])
-
   useEffect(() => {
     fetchReports()
-    fetchWeather()
-    fetchOsrmRoute()
+    initCity()
     const unsub = subscribeToReports()
-    return unsub
+    return () => { unsub(); destroyCity() }
   }, [])
-
-  const fetchOsrmRoute = async () => {
-    try {
-      const routesToFetch = [
-        { start: [77.4126, 23.2599], end: [77.4300, 23.2400] },
-        { start: [77.4126, 23.2599], end: [77.3950, 23.2750] },
-        { start: [77.4126, 23.2599], end: [77.3900, 23.2450] },
-        { start: [77.4200, 23.2500], end: [77.4000, 23.2350] },
-      ]
-
-      const fetchRoute = async (route) => {
-        const res = await fetch(`https://router.project-osrm.org/route/v1/driving/${route.start[0]},${route.start[1]};${route.end[0]},${route.end[1]}?overview=full&geometries=geojson`)
-        const data = await res.json()
-        if (data.routes && data.routes[0]) {
-          return data.routes[0].geometry.coordinates.map(c => [c[1], c[0]])
-        }
-        return []
-      }
-
-      const results = await Promise.all(routesToFetch.map(fetchRoute))
-      
-      const allSegments = []
-      results.forEach((coords) => {
-        for (let i = 0; i < coords.length - 1; i++) {
-          const rand = Math.random()
-          let color = '#22c55e' // Green
-          if (rand > 0.8) color = '#ef4444' // Red
-          else if (rand > 0.5) color = '#eab308' // Yellow
-          allSegments.push({ positions: [coords[i], coords[i+1]], color })
-        }
-      })
-      
-      setOsrmSegments(allSegments)
-    } catch (err) { console.warn('OSRM fetch failed') }
-  }
-
-  const fetchWeather = async () => {
-    try {
-      const res = await fetch(WEATHER_URL)
-      const data = await res.json()
-      if (data.current) {
-        data.current.temperature_2m = (data.current.temperature_2m - 2).toFixed(1)
-      }
-      setWeather(data)
-    } catch (err) { console.warn('Weather fetch failed') }
-  }
 
   const handleMapClick = (e) => {
     if (showForm) setPinLocation({ lat: e.latlng.lat, lng: e.latlng.lng })
   }
 
   const handleImageChange = async (e) => {
-    const file = e.target.files[0]
+    const file = e.target.files?.[0]
     if (!file) return
+    setError('')
     try {
+      // Validate type
+      if (!file.type.startsWith('image/')) { setError('Please select an image file (jpg, png, etc.)'); return }
+      // Validate size (30MB raw max before compression)
+      if (file.size > 30 * 1024 * 1024) { setError('Image too large. Max 30MB.'); return }
       const compressed = await compressImage(file)
+      const preview = await fileToDataUrl(compressed)
       setImageFile(compressed)
-      setImagePreview(await fileToDataUrl(compressed))
-      setError('')
-    } catch (err) { setError(err.message) }
+      setImagePreview(preview)
+    } catch (err) {
+      console.error('Image compression error:', err)
+      setError(err.message || 'Failed to process image')
+    }
   }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
     if (!pinLocation) { setError('Click the map to set location'); return }
     if (!form.description.trim()) { setError('Please describe the issue'); return }
-    if (!imageFile) { setError('Image proof is strictly REQUIRED to earn points.'); return }
-    
+    if (!imageFile) { setError('Photo proof is required to submit a report.'); return }
+
     setError(''); setSubmitting(true)
     try {
       const path = `reports/${user.id}/${Date.now()}.jpg`
-      await supabase.storage.from('report-images').upload(path, imageFile, { contentType: 'image/jpeg' })
+      const { error: uploadErr } = await supabase.storage.from('report-images').upload(path, imageFile, { contentType: 'image/jpeg' })
+      if (uploadErr) throw new Error(`Upload failed: ${uploadErr.message}`)
+
       const { data: { publicUrl } } = supabase.storage.from('report-images').getPublicUrl(path)
-      
-      const { data: report, error: reportError } = await supabase.from('reports')
+
+      const { data: report, error: reportErr } = await supabase.from('reports')
         .insert({ user_id: user.id, category: form.category, description: form.description, image_url: publicUrl, latitude: pinLocation.lat, longitude: pinLocation.lng, zone: form.zone, status: 'pending' })
         .select().single()
-      
-      if (reportError) throw reportError
+
+      if (reportErr) throw reportErr
       addReport(report)
       await awardPoints(user.id, 'REPORT_SUBMITTED', report.id)
-      
+
+      // Reset form
       setShowForm(false); setPinLocation(null)
       setForm({ category: 'garbage', description: '', zone: BHOPAL_WARDS[0] })
       setImageFile(null); setImagePreview(null)
-    } catch (err) { setError(err.message) }
-    finally { setSubmitting(false) }
+    } catch (err) {
+      console.error('Report submission error:', err)
+      setError(err.message || 'Submission failed')
+    } finally { setSubmitting(false) }
   }
 
   const filteredReports = reports.filter(r =>
@@ -186,9 +132,7 @@ export default function MapPage() {
   )
 
   const toggleCat = (id) => setFilters({
-    categories: filters.categories.includes(id)
-      ? filters.categories.filter(c => c !== id)
-      : [...filters.categories, id]
+    categories: filters.categories.includes(id) ? filters.categories.filter(c => c !== id) : [...filters.categories, id]
   })
 
   return (
@@ -198,16 +142,12 @@ export default function MapPage() {
           <h1 className="text-xl font-bold text-slate-900 dark:text-white">City Intelligence Map</h1>
           <p className="text-slate-500 text-xs mt-0.5">Bhopal · Live IoT Telemetry & Citizen Reports</p>
         </div>
-        <div className="flex gap-2">
-          <button onClick={() => setShowIot(!showIot)} className="btn-secondary text-xs py-2 px-4">
-            <Activity size={13} /> {showIot ? 'Hide IoT Nodes' : 'Show IoT Nodes'}
-          </button>
-          <button onClick={() => { setShowForm(!showForm); if (!showForm) setPinLocation(null) }} className="btn-primary text-xs py-2 px-4">
-            <MapPin size={13} /> {showForm ? 'Cancel Report' : 'Report Issue'}
-          </button>
-        </div>
+        <button onClick={() => { setShowForm(!showForm); if (!showForm) setPinLocation(null) }} className="btn-primary text-xs py-2 px-4">
+          <MapPin size={13} /> {showForm ? 'Cancel Report' : 'Report Issue'}
+        </button>
       </div>
 
+      {/* Category Filters */}
       <div className="flex flex-wrap gap-2">
         {REPORT_CATEGORIES.map(cat => (
           <button key={cat.id} onClick={() => toggleCat(cat.id)}
@@ -225,9 +165,9 @@ export default function MapPage() {
 
       <div className="grid lg:grid-cols-3 gap-4 relative">
         <div className={showForm ? 'lg:col-span-2' : 'lg:col-span-3'} style={{ height: '520px', position: 'relative' }}>
-          
-          {/* Weather Widget Overlay */}
-          {weather && (
+
+          {/* Weather Widget */}
+          {weather?.current && (
             <div className="absolute top-4 right-4 z-[400] bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm p-3 rounded-xl shadow-lg border border-slate-200 dark:border-slate-800 text-xs min-w-[140px] pointer-events-none">
               <div className="flex items-center justify-between mb-2">
                 <span className="font-bold text-slate-800 dark:text-slate-200">Weather</span>
@@ -242,22 +182,25 @@ export default function MapPage() {
                 <span className="font-semibold text-slate-700 dark:text-slate-300">{weather.current.relative_humidity_2m}%</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-500">AQI</span>
-                <span className="font-semibold text-green-500">Good (42)</span>
+                <span className="text-slate-500">Wind</span>
+                <span className="font-semibold text-slate-700 dark:text-slate-300">{weather.current.wind_speed_10m} km/h</span>
               </div>
             </div>
           )}
 
-          <MapContainer center={BHOPAL_CENTER} zoom={MAP_DEFAULT_ZOOM} minZoom={MAP_MIN_ZOOM} maxZoom={MAP_MAX_ZOOM} maxBounds={BHOPAL_BOUNDS} maxBoundsViscosity={1.0} scrollWheelZoom={false} style={{ height: '100%', width: '100%', borderRadius: '12px', zIndex: 10 }}>
-            {/* OpenStreetMap for map data as requested */}
+          {/* Layer Controls */}
+          <LayerControls />
+
+          <MapContainer center={BHOPAL_CENTER} zoom={MAP_DEFAULT_ZOOM} minZoom={MAP_MIN_ZOOM} maxZoom={MAP_MAX_ZOOM} maxBounds={BHOPAL_BOUNDS} maxBoundsViscosity={1.0} scrollWheelZoom={true} style={{ height: '100%', width: '100%', borderRadius: '12px', zIndex: 10 }}>
             <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution='&copy; OpenStreetMap contributors' />
             <MapClickHandler onMapClick={handleMapClick} />
-            
-            {/* OSRM Routing Engine Data simulating traffic */}
-            {osrmSegments.map((segment, i) => (
-              <Polyline key={i} positions={segment.positions} color={segment.color} weight={6} opacity={0.8} lineCap="round" />
-            ))}
-            
+
+            {/* Isolated Layers */}
+            {layers.traffic && <TrafficLayer />}
+            {layers.parking && <ParkingLayer />}
+            {layers.waste   && <WasteLayer />}
+            {layers.energy  && <EnergyLayer />}
+
             {/* User Reports */}
             {filteredReports.map(report => (
               <Marker key={report.id} position={[report.latitude, report.longitude]} icon={createCategoryIcon(report.category)}>
@@ -271,31 +214,6 @@ export default function MapPage() {
                 </Popup>
               </Marker>
             ))}
-
-            {/* Mock IoT Data */}
-            {showIot && iotData.map(iot => (
-              <CircleMarker key={iot.id} center={[iot.lat, iot.lng]} radius={6} pathOptions={{ color: iot.color, fillColor: iot.color, fillOpacity: 0.7, weight: 2 }}>
-                <Popup>
-                  <div className="text-xs">
-                    <div className="font-bold mb-1" style={{color: iot.color}}>{iot.label}</div>
-                    <div className="text-slate-600">Status: <b>{iot.status}</b></div>
-                    <div className="text-slate-600">Telemetry: {iot.value} units</div>
-                  </div>
-                </Popup>
-              </CircleMarker>
-            ))}
-
-            {showIot && (
-              <div className="absolute bottom-4 left-4 z-[400] bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm p-3 rounded-lg shadow-lg border border-slate-200 dark:border-slate-800 text-[10px]">
-                <h4 className="font-semibold text-slate-800 dark:text-slate-200 mb-2">IoT Legend</h4>
-                <div className="grid grid-cols-2 gap-x-4 gap-y-2">
-                  <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-full bg-[#3b82f6]"></div><span className="text-slate-600 dark:text-slate-400">Traffic</span></div>
-                  <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-full bg-[#10b981]"></div><span className="text-slate-600 dark:text-slate-400">Parking</span></div>
-                  <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-full bg-[#f59e0b]"></div><span className="text-slate-600 dark:text-slate-400">Energy</span></div>
-                  <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-full bg-[#8b5cf6]"></div><span className="text-slate-600 dark:text-slate-400">Waste</span></div>
-                </div>
-              </div>
-            )}
 
             {pinLocation && <Marker position={[pinLocation.lat, pinLocation.lng]} />}
           </MapContainer>
@@ -335,14 +253,14 @@ export default function MapPage() {
                 {imagePreview ? (
                   <div className="relative">
                     <img src={imagePreview} alt="preview" className="w-full h-24 object-cover rounded-lg border border-slate-200 dark:border-slate-700" />
-                    <button type="button" onClick={() => { setImageFile(null); setImagePreview(null) }} className="absolute top-1 right-1 bg-red-500 hover:bg-red-600 rounded-full p-1"><X size={12} className="text-white" /></button>
+                    <button type="button" onClick={() => { setImageFile(null); setImagePreview(null); if (fileRef.current) fileRef.current.value = '' }} className="absolute top-1 right-1 bg-red-500 hover:bg-red-600 rounded-full p-1"><X size={12} className="text-white" /></button>
                   </div>
                 ) : (
-                  <button type="button" onClick={() => fileRef.current.click()} className="w-full border-2 border-dashed border-slate-300 dark:border-slate-700 hover:border-primary-500 dark:hover:border-primary-500 rounded-lg py-4 flex flex-col items-center gap-1 text-slate-500 transition-colors bg-slate-50 dark:bg-slate-900/50">
-                    <Upload size={18} /><span className="text-xs font-medium">Upload photo (Max 10MB)</span>
+                  <button type="button" onClick={() => fileRef.current?.click()} className="w-full border-2 border-dashed border-slate-300 dark:border-slate-700 hover:border-primary-500 dark:hover:border-primary-500 rounded-lg py-4 flex flex-col items-center gap-1 text-slate-500 transition-colors bg-slate-50 dark:bg-slate-900/50">
+                    <Upload size={18} /><span className="text-xs font-medium">Upload photo (jpg/png, max 10MB)</span>
                   </button>
                 )}
-                <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleImageChange} />
+                <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={handleImageChange} />
               </div>
               {error && <p className="text-xs text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/30 rounded-lg px-3 py-2">{error}</p>}
               <button type="submit" className="btn-primary w-full justify-center text-xs py-2.5" disabled={submitting || !pinLocation}>

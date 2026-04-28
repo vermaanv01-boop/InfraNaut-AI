@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 @import "tailwindcss";
 
 @custom-variant dark (&:where(.dark, .dark *));
@@ -6,9 +6,14 @@
 @theme {
   --color-primary-50: #eff6ff;
   --color-primary-100: #dbeafe;
+  --color-primary-200: #bfdbfe;
+  --color-primary-300: #93c5fd;
+  --color-primary-400: #60a5fa;
   --color-primary-500: #3b82f6;
   --color-primary-600: #2563eb;
   --color-primary-700: #1d4ed8;
+  --color-primary-800: #1e40af;
+  --color-primary-900: #1e3a5f;
   --font-sans: 'Inter', sans-serif;
 }
 
@@ -53,28 +58,140 @@
   .dark .btn-ghost {
     @apply hover:bg-slate-800 text-slate-300;
   }
+
+  /* Glassmorphism card */
+  .glass-card {
+    @apply bg-white/80 border border-white/20 rounded-2xl shadow-lg;
+    backdrop-filter: blur(16px);
+  }
+  .dark .glass-card {
+    @apply bg-slate-900/80 border-slate-700/30;
+  }
+
+  /* Nexora message bubble */
+  .nexora-message {
+    @apply bg-slate-50 border border-slate-200 rounded-xl rounded-tl-sm;
+  }
+  .dark .nexora-message {
+    @apply bg-slate-800/60 border-slate-700/50;
+  }
+
+  .user-message {
+    @apply bg-primary-600 text-white rounded-xl rounded-tr-sm;
+  }
 }
 
-/* Scrollbar styling for a cleaner look */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-::-webkit-scrollbar-thumb {
-  @apply bg-slate-300 rounded-full;
-}
-.dark ::-webkit-scrollbar-thumb {
-  @apply bg-slate-700;
-}
+/* Scrollbar styling */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { @apply bg-slate-300 rounded-full; }
+.dark ::-webkit-scrollbar-thumb { @apply bg-slate-700; }
 
+/* Animations */
 @keyframes slow-zoom {
   0% { transform: scale(1); }
   100% { transform: scale(1.1); }
 }
-
 .animate-slow-zoom {
   animation: slow-zoom 30s linear infinite alternate;
+}
+
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-in {
+  animation: fade-in 0.4s ease-out;
+}
+
+@keyframes fade-in-up {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-in-up {
+  animation: fade-in-up 0.35s ease-out both;
+}
+
+@keyframes pulse-teal {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(20, 184, 166, 0.4); }
+  50% { box-shadow: 0 0 0 6px rgba(20, 184, 166, 0); }
+}
+.animate-pulse-teal {
+  animation: pulse-teal 2s ease-in-out infinite;
+}
+
+@keyframes point-flash {
+  0% { opacity: 1; transform: translateY(0) scale(1); }
+  100% { opacity: 0; transform: translateY(-40px) scale(1.2); }
+}
+.point-flash {
+  animation: point-flash 1.8s ease-out forwards;
+}
+
+@keyframes badge-pop {
+  0% { transform: scale(0.5); opacity: 0; }
+  60% { transform: scale(1.1); }
+  100% { transform: scale(1); opacity: 1; }
+}
+.animate-badge-pop {
+  animation: badge-pop 0.4s ease-out both;
+}
+
+/* Typing dots */
+.typing-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #94a3b8;
+  animation: typing-bounce 1.4s ease-in-out infinite;
+}
+.typing-dot:nth-child(2) { animation-delay: 0.15s; }
+.typing-dot:nth-child(3) { animation-delay: 0.3s; }
+
+@keyframes typing-bounce {
+  0%, 60%, 100% { transform: translateY(0); }
+  30% { transform: translateY(-5px); }
+}
+
+/* Shimmer skeleton */
+.shimmer {
+  background: linear-gradient(90deg, #e2e8f0 25%, #f1f5f9 50%, #e2e8f0 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+.dark .shimmer {
+  background: linear-gradient(90deg, #1e293b 25%, #334155 50%, #1e293b 75%);
+  background-size: 200% 100%;
+}
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* Nexora glow effect */
+.nexora-glow {
+  box-shadow: 0 0 12px rgba(20, 184, 166, 0.35);
+}
+
+/* Leaflet overrides for dark mode */
+.dark .leaflet-container {
+  background: #0f172a;
+}
+.dark .leaflet-popup-content-wrapper {
+  background: #1e293b;
+  color: #e2e8f0;
+  border: 1px solid #334155;
+}
+.dark .leaflet-popup-tip {
+  background: #1e293b;
+}
+
+/* Toast notification */
+.toast-enter {
+  animation: toast-slide-in 0.3s ease-out;
+}
+@keyframes toast-slide-in {
+  from { transform: translateX(100%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
 }

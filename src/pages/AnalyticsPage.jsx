@@ -1,43 +1,45 @@
 import { useState, useEffect } from 'react'
 import { useAuthStore } from '../stores/authStore'
-import { usePointsStore } from '../stores/pointsStore'
+import { useCityStore } from '../stores/cityStore'
 import { nexoraCompletion } from '../lib/openrouter'
 import { supabase } from '../lib/supabase'
-import { WEATHER_URL, REPORT_CATEGORIES, BHOPAL_WARDS } from '../utils/constants'
+import { REPORT_CATEGORIES } from '../utils/constants'
 import NexoraAvatar from '../components/nexora/NexoraAvatar'
 import { RefreshCw, Loader2, TrendingUp, AlertTriangle, Shield } from 'lucide-react'
+import { BarChart, Bar, LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts'
+
+const PIE_COLORS = ['#84cc16', '#f59e0b', '#8b5cf6', '#3b82f6', '#ef4444', '#94a3b8']
 
 function PredictionCard({ prediction, index }) {
-  const riskColor = prediction.risk_score > 0.7 ? 'text-red-400' : prediction.risk_score > 0.4 ? 'text-amber-400' : 'text-green-400'
-  const riskBg = prediction.risk_score > 0.7 ? 'bg-red-500/10 border-red-500/20' : prediction.risk_score > 0.4 ? 'bg-amber-500/10 border-amber-500/20' : 'bg-green-500/10 border-green-500/20'
-  const riskLabel = prediction.risk_score > 0.7 ? 'High Risk' : prediction.risk_score > 0.4 ? 'Moderate' : 'Low Risk'
+  const rs = prediction.risk_score
+  const riskColor = rs > 0.7 ? 'text-red-400' : rs > 0.4 ? 'text-amber-400' : 'text-green-400'
+  const riskBg = rs > 0.7 ? 'bg-red-500/10 border-red-500/20' : rs > 0.4 ? 'bg-amber-500/10 border-amber-500/20' : 'bg-green-500/10 border-green-500/20'
+  const riskLabel = rs > 0.7 ? 'High Risk' : rs > 0.4 ? 'Moderate' : 'Low Risk'
+  const barColor = rs > 0.7 ? '#ef4444' : rs > 0.4 ? '#f59e0b' : '#22c55e'
 
   return (
-    <div className="card hover:border-teal-800/50 transition-all animate-fade-in-up" style={{ animationDelay: `${index * 80}ms` }}>
+    <div className="card hover:shadow-md transition-all" style={{ animationDelay: `${index * 80}ms` }}>
       <div className="flex items-start justify-between mb-3">
         <div className="flex items-center gap-2">
           <NexoraAvatar size={28} />
           <div>
-            <div className="text-[10px] font-semibold text-teal-400">Nexora's Insight</div>
-            <div className="text-[9px] text-slate-500">{new Date(prediction.created_at).toLocaleDateString()}</div>
+            <div className="text-[10px] font-semibold text-teal-600 dark:text-teal-400">Nexora Insight</div>
+            <div className="text-[9px] text-slate-400">{new Date(prediction.created_at).toLocaleDateString()}</div>
           </div>
         </div>
-        <div className={`text-[10px] font-bold px-2 py-1 rounded-full border ${riskBg} ${riskColor}`}>
-          {riskLabel}
-        </div>
+        <div className={`text-[10px] font-bold px-2 py-1 rounded-full border ${riskBg} ${riskColor}`}>{riskLabel}</div>
       </div>
       <div className="mb-3">
-        <div className="text-xs font-semibold text-white mb-1">{prediction.zone} · <span className={`badge-${prediction.category} px-1.5 py-0.5 rounded-full text-[10px]`}>{prediction.category}</span></div>
-        <p className="text-xs text-slate-300 leading-relaxed">{prediction.insight}</p>
+        <div className="text-xs font-semibold text-slate-900 dark:text-white mb-1">{prediction.zone} · <span className="text-slate-500">{prediction.category}</span></div>
+        <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">{prediction.insight}</p>
       </div>
-      <div className="flex items-center justify-between pt-3 border-t border-slate-800">
-        <div className="text-[10px] text-slate-500">{prediction.report_count} reports analyzed</div>
+      <div className="flex items-center justify-between pt-3 border-t border-slate-100 dark:border-slate-800">
+        <div className="text-[10px] text-slate-400">{prediction.report_count} reports</div>
         <div className="flex items-center gap-1">
-          <div className="text-[10px] text-slate-500">Risk Score</div>
-          <div className="w-16 h-1.5 bg-slate-800 rounded-full overflow-hidden">
-            <div className={`h-full rounded-full ${prediction.risk_score > 0.7 ? 'bg-red-500' : prediction.risk_score > 0.4 ? 'bg-amber-500' : 'bg-green-500'}`} style={{ width: `${prediction.risk_score * 100}%` }} />
+          <div className="w-16 h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+            <div className="h-full rounded-full" style={{ width: `${rs * 100}%`, background: barColor }} />
           </div>
-          <span className={`text-[10px] font-bold ${riskColor}`}>{Math.round(prediction.risk_score * 100)}%</span>
+          <span className={`text-[10px] font-bold ${riskColor}`}>{Math.round(rs * 100)}%</span>
         </div>
       </div>
     </div>
@@ -46,26 +48,32 @@ function PredictionCard({ prediction, index }) {
 
 export default function AnalyticsPage() {
   const { user } = useAuthStore()
+  const getCityContext = useCityStore(s => s.getCityContext)
+  const weather = useCityStore(s => s.weather)
+  const aqi = useCityStore(s => s.aqi)
+  const parkingSpots = useCityStore(s => s.parkingSpots)
+  const trafficLevel = useCityStore(s => s.trafficLevel)
+  const initCity = useCityStore(s => s.initCity)
+
   const [predictions, setPredictions] = useState([])
   const [generating, setGenerating] = useState(false)
-  const [weather, setWeather] = useState(null)
+  const [reportStats, setReportStats] = useState([])
 
-  useEffect(() => {
-    fetchPredictions()
-    fetchWeather()
-  }, [])
+  useEffect(() => { fetchPredictions(); fetchReportStats(); initCity() }, [])
 
   const fetchPredictions = async () => {
     const { data } = await supabase.from('predictions').select('*').order('created_at', { ascending: false }).limit(12)
     setPredictions(data || [])
   }
 
-  const fetchWeather = async () => {
-    try {
-      const res = await fetch(WEATHER_URL)
-      const data = await res.json()
-      setWeather(data)
-    } catch (_) {}
+  const fetchReportStats = async () => {
+    const { data } = await supabase.from('reports').select('category').limit(500)
+    if (data) {
+      const counts = {}
+      data.forEach(r => { counts[r.category] = (counts[r.category] || 0) + 1 })
+      const stats = REPORT_CATEGORIES.map(c => ({ name: c.label, value: counts[c.id] || 0, color: c.color }))
+      setReportStats(stats)
+    }
   }
 
   const generatePredictions = async () => {
@@ -74,10 +82,7 @@ export default function AnalyticsPage() {
       const { data: reports } = await supabase.from('reports').select('*').order('created_at', { ascending: false }).limit(100)
       if (!reports?.length) { setGenerating(false); return }
 
-      const weatherSummary = weather?.current
-        ? `Temperature: ${weather.current.temperature_2m}°C, Humidity: ${weather.current.relative_humidity_2m}%, Wind: ${weather.current.wind_speed_10m}km/h, Precipitation: ${weather.current.precipitation}mm`
-        : 'Weather data unavailable'
-
+      const cityContext = getCityContext()
       const zones = [...new Set(reports.map(r => r.zone).filter(Boolean))].slice(0, 4)
       const newPredictions = []
 
@@ -89,13 +94,13 @@ export default function AnalyticsPage() {
 
         const insight = await nexoraCompletion([{
           role: 'user',
-          content: `Analyze this data for ${zone} in Bhopal and give a 2-sentence forward-looking prediction:\nReports: ${catCounts.map(c => `${c.cat}:${c.count}`).join(', ')}\nWeather: ${weatherSummary}\nFocus on the "${topCat.cat}" issue cluster. Give a risk assessment and one recommendation.`
-        }], 200)
+          content: `Analyze this data for ${zone} in Bhopal. Give a 2-sentence forward-looking prediction:\nReports: ${catCounts.map(c => `${c.cat}:${c.count}`).join(', ')}\nFocus on "${topCat.cat}" issues. Give risk assessment and one recommendation.`
+        }], 200, cityContext)
 
         const risk_score = Math.min(0.95, (topCat.count / 10) + (weather?.current?.precipitation > 5 ? 0.2 : 0))
         const { data: pred } = await supabase.from('predictions').insert({
-          zone, category: topCat.cat, risk_score,
-          insight, weather_data: weather?.current || {}, report_count: zoneReports.length
+          zone, category: topCat.cat, risk_score, insight,
+          weather_data: weather?.current || {}, report_count: zoneReports.length
         }).select().single()
         if (pred) newPredictions.push(pred)
       }
@@ -104,39 +109,77 @@ export default function AnalyticsPage() {
     finally { setGenerating(false) }
   }
 
-  const avgRisk = predictions.length ? (predictions.reduce((sum, p) => sum + p.risk_score, 0) / predictions.length) : 0
+  const avgRisk = predictions.length ? (predictions.reduce((s, p) => s + p.risk_score, 0) / predictions.length) : 0
   const highRisk = predictions.filter(p => p.risk_score > 0.7).length
+
+  // Parking chart data
+  const parkingChart = parkingSpots.slice(0, 8).map(p => ({ name: p.name.split(' ').slice(0, 2).join(' '), available: p.available, capacity: p.capacity }))
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold text-white">AI Predictive Analytics</h1>
-          <p className="text-slate-400 text-xs mt-0.5">Powered by Nexora · Bhopal city intelligence</p>
+          <h1 className="text-xl font-bold text-slate-900 dark:text-white">AI Predictive Analytics</h1>
+          <p className="text-slate-500 text-xs mt-0.5">Powered by Nexora · Bhopal city intelligence</p>
         </div>
         <button onClick={generatePredictions} disabled={generating} className="btn-primary text-xs py-2 px-4">
           {generating ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
           {generating ? 'Analyzing...' : 'Generate Insights'}
         </button>
       </div>
+
+      {/* Summary cards */}
       <div className="grid grid-cols-3 gap-4">
         {[
-          { label: 'Total Insights', value: predictions.length, icon: TrendingUp, color: 'text-teal-400' },
+          { label: 'Total Insights', value: predictions.length, icon: TrendingUp, color: 'text-teal-500' },
           { label: 'High Risk Zones', value: highRisk, icon: AlertTriangle, color: 'text-red-400' },
-          { label: 'Avg Risk Score', value: `${Math.round(avgRisk * 100)}%`, icon: Shield, color: avgRisk > 0.6 ? 'text-red-400' : avgRisk > 0.4 ? 'text-amber-400' : 'text-green-400' },
+          { label: 'Avg Risk Score', value: `${Math.round(avgRisk * 100)}%`, icon: Shield, color: avgRisk > 0.6 ? 'text-red-400' : 'text-green-400' },
         ].map(({ label, value, icon: Icon, color }) => (
           <div key={label} className="card">
             <Icon size={18} className={`${color} mb-2`} />
-            <div className="text-2xl font-bold text-white">{value}</div>
-            <div className="text-xs text-slate-400">{label}</div>
+            <div className="text-2xl font-bold text-slate-900 dark:text-white">{value}</div>
+            <div className="text-xs text-slate-500">{label}</div>
           </div>
         ))}
       </div>
+
+      {/* Charts row */}
+      <div className="grid md:grid-cols-2 gap-5">
+        {reportStats.length > 0 && (
+          <div className="card">
+            <h3 className="text-sm font-semibold text-slate-900 dark:text-white mb-4">Reports by Category</h3>
+            <ResponsiveContainer width="100%" height={200}>
+              <PieChart>
+                <Pie data={reportStats} cx="50%" cy="50%" innerRadius={50} outerRadius={80} dataKey="value" label={({ name, value }) => `${name} (${value})`}>
+                  {reportStats.map((entry, i) => <Cell key={i} fill={entry.color || PIE_COLORS[i % PIE_COLORS.length]} />)}
+                </Pie>
+                <Tooltip />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+        {parkingChart.length > 0 && (
+          <div className="card">
+            <h3 className="text-sm font-semibold text-slate-900 dark:text-white mb-4">Parking Usage</h3>
+            <ResponsiveContainer width="100%" height={200}>
+              <BarChart data={parkingChart}>
+                <XAxis dataKey="name" tick={{ fontSize: 9 }} stroke="#94a3b8" />
+                <YAxis tick={{ fontSize: 10 }} stroke="#94a3b8" />
+                <Tooltip contentStyle={{ fontSize: 11, borderRadius: 8 }} />
+                <Bar dataKey="capacity" fill="#e2e8f0" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="available" fill="#22c55e" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+      </div>
+
+      {/* Predictions */}
       {predictions.length === 0 ? (
         <div className="card text-center py-16">
           <NexoraAvatar size={48} className="mx-auto mb-4" />
-          <h3 className="text-white font-semibold mb-2">No predictions yet</h3>
-          <p className="text-slate-400 text-sm">Click "Generate Insights" and Nexora will analyze current reports + weather data to generate forward-looking city predictions.</p>
+          <h3 className="text-slate-900 dark:text-white font-semibold mb-2">No predictions yet</h3>
+          <p className="text-slate-500 text-sm">Click "Generate Insights" to analyze reports + weather data.</p>
         </div>
       ) : (
         <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4">

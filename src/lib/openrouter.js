@@ -2,16 +2,35 @@ const OPENROUTER_API_KEY = import.meta.env.VITE_OPENROUTER_API_KEY
 const OPENROUTER_BASE_URL = 'https://openrouter.ai/api/v1'
 const MODEL = 'google/gemini-2.0-flash-exp:free'
 
-export const NEXORA_SYSTEM_PROMPT = `You are Nexora, the AI assistant for InfraNaut AI — a smart city platform focused on Bhopal, India. You are helpful, concise, civic-minded, and warm. You help citizens with city-related queries, infrastructure issues, eco-friendly routes, and urban analytics. Always frame answers to benefit the community. Keep responses focused and actionable. Use Markdown formatting where helpful.`
+export const NEXORA_SYSTEM_PROMPT = `You are Nexora, the AI assistant for InfraNaut AI — a smart city platform focused on Bhopal, India.
+
+CAPABILITIES:
+- You have REAL-TIME access to city data (traffic, parking, weather, AQI, waste, energy) that is appended to each conversation.
+- When asked about parking, traffic, weather, or city status, use the LIVE DATA provided — do NOT make up numbers.
+- Provide specific, actionable answers based on the data.
+
+PERSONALITY:
+- Helpful, concise, civic-minded, and warm
+- Always frame answers to benefit the community
+- Use Markdown formatting where helpful
+- Keep responses focused and under 300 words unless detail is needed
+
+EXAMPLES OF GOOD ANSWERS:
+- "Based on current data, DB Mall Parking has 120/450 spots available (73% full). I'd recommend going now as it typically fills up by 6 PM."
+- "Traffic congestion is at 35% right now. The Hoshangabad Road corridor is showing green, so it's a good time to commute."
+- "Current AQI is 42 (Good). Safe for outdoor activities today."`
 
 /**
- * Stream a chat completion from OpenRouter (Claude model).
+ * Stream a chat completion from OpenRouter.
  * @param {Array} messages - [{role, content}]
  * @param {function} onToken - called with each text chunk
  * @param {function} onDone - called when stream ends
  * @param {AbortSignal} signal
+ * @param {string} cityContext - live city data string
  */
-export async function streamNexoraResponse(messages, onToken, onDone, signal) {
+export async function streamNexoraResponse(messages, onToken, onDone, signal, cityContext = '') {
+  const systemContent = NEXORA_SYSTEM_PROMPT + (cityContext ? `\n\n${cityContext}` : '')
+
   const response = await fetch(`${OPENROUTER_BASE_URL}/chat/completions`, {
     method: 'POST',
     headers: {
@@ -23,7 +42,7 @@ export async function streamNexoraResponse(messages, onToken, onDone, signal) {
     body: JSON.stringify({
       model: MODEL,
       messages: [
-        { role: 'system', content: NEXORA_SYSTEM_PROMPT },
+        { role: 'system', content: systemContent },
         ...messages,
       ],
       stream: true,
@@ -63,8 +82,11 @@ export async function streamNexoraResponse(messages, onToken, onDone, signal) {
 
 /**
  * Single (non-streaming) completion — used for analytics, eco-route, @Nexora chat
+ * @param {string} cityContext - live city data string
  */
-export async function nexoraCompletion(messages, maxTokens = 512) {
+export async function nexoraCompletion(messages, maxTokens = 512, cityContext = '') {
+  const systemContent = NEXORA_SYSTEM_PROMPT + (cityContext ? `\n\n${cityContext}` : '')
+
   const response = await fetch(`${OPENROUTER_BASE_URL}/chat/completions`, {
     method: 'POST',
     headers: {
@@ -76,7 +98,7 @@ export async function nexoraCompletion(messages, maxTokens = 512) {
     body: JSON.stringify({
       model: MODEL,
       messages: [
-        { role: 'system', content: NEXORA_SYSTEM_PROMPT },
+        { role: 'system', content: systemContent },
         ...messages,
       ],
       max_tokens: maxTokens,
@@ -86,7 +108,7 @@ export async function nexoraCompletion(messages, maxTokens = 512) {
 
   if (!response.ok) {
     console.warn(`OpenRouter error: ${response.status}. Using fallback response.`)
-    return "This is a simulated Nexora AI response because the OpenRouter API key failed or the service is down. Please check your .env configuration."
+    return "I'm having trouble connecting to the AI service right now. Please check your OpenRouter API key in the .env file or try again in a moment."
   }
   const data = await response.json()
   return data.choices?.[0]?.message?.content || "No response generated."

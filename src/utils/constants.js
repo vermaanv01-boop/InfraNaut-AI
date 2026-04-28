@@ -35,6 +35,32 @@ export const POINTS = {
   ECO_ROUTE_SAVED: 15,
   CHAT_MESSAGE: 2,
   AI_TURN: 1,
+  DAILY_ACTIVITY: 5,
+}
+
+// User levels
+export const LEVELS = [
+  { name: 'Beginner',     minPoints: 0,    icon: '🌱', color: 'text-slate-400' },
+  { name: 'Contributor',  minPoints: 50,   icon: '⭐', color: 'text-blue-400' },
+  { name: 'Active Citizen', minPoints: 150, icon: '🔥', color: 'text-orange-400' },
+  { name: 'City Hero',    minPoints: 500,  icon: '🦸', color: 'text-purple-400' },
+  { name: 'Legend',       minPoints: 1000, icon: '👑', color: 'text-amber-400' },
+]
+
+export function getUserLevel(points) {
+  for (let i = LEVELS.length - 1; i >= 0; i--) {
+    if (points >= LEVELS[i].minPoints) return { ...LEVELS[i], index: i }
+  }
+  return { ...LEVELS[0], index: 0 }
+}
+
+export function getLevelProgress(points) {
+  const current = getUserLevel(points)
+  const nextLevel = LEVELS[current.index + 1]
+  if (!nextLevel) return 100
+  const range = nextLevel.minPoints - current.minPoints
+  const progress = points - current.minPoints
+  return Math.min(100, Math.round((progress / range) * 100))
 }
 
 // Badge definitions

@@ -9,6 +9,9 @@ import MapPage from './pages/MapPage'
 import ChatPage from './pages/ChatPage'
 import AnalyticsPage from './pages/AnalyticsPage'
 import NexoraPage from './pages/NexoraPage'
+import EcoRoutePage from './pages/EcoRoutePage'
+import LeaderboardPage from './pages/LeaderboardPage'
+import ProfilePage from './pages/ProfilePage'
 
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuthStore()
@@ -44,6 +47,9 @@ export default function App() {
           <Route path="chat" element={<ChatPage />} />
           <Route path="nexora" element={<NexoraPage />} />
           <Route path="analytics" element={<AnalyticsPage />} />
+          <Route path="eco-route" element={<EcoRoutePage />} />
+          <Route path="leaderboard" element={<LeaderboardPage />} />
+          <Route path="profile" element={<ProfilePage />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

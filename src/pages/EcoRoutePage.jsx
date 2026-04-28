@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useAuthStore } from '../stores/authStore'
 import { usePointsStore } from '../stores/pointsStore'
+import { useCityStore } from '../stores/cityStore'
 import { nexoraCompletion } from '../lib/openrouter'
 import { supabase } from '../lib/supabase'
 import NexoraAvatar from '../components/nexora/NexoraAvatar'
@@ -10,6 +11,7 @@ import { Leaf, MapPin, Loader2, Save, CheckCircle2 } from 'lucide-react'
 export default function EcoRoutePage() {
   const { user } = useAuthStore()
   const { awardPoints } = usePointsStore()
+  const getCityContext = useCityStore(s => s.getCityContext)
   const [origin, setOrigin] = useState('')
   const [destination, setDestination] = useState('')
   const [suggestion, setSuggestion] = useState('')
@@ -22,10 +24,11 @@ export default function EcoRoutePage() {
     if (!origin.trim() || !destination.trim()) { setError('Please enter both origin and destination'); return }
     setError(''); setLoading(true); setSuggestion(''); setSaved(false)
     try {
+      const cityContext = getCityContext()
       const result = await nexoraCompletion([{
         role: 'user',
-        content: `I'm in Bhopal and want to travel from "${origin}" to "${destination}". Please suggest the most eco-friendly route options. Compare: walking, cycling, auto-rickshaw, and bus. For each option give: estimated time, approximate CO₂ emissions, and a brief reason. Format with clear sections. End with your top recommendation.`
-      }], 600)
+        content: `I'm in Bhopal and want to travel from "${origin}" to "${destination}". Please suggest the most eco-friendly route options. Compare: walking, cycling, auto-rickshaw, and bus. For each option give: estimated time, approximate CO₂ emissions, and a brief reason. Use the live traffic data to adjust recommendations. Format with clear sections. End with your top recommendation.`
+      }], 600, cityContext)
       setSuggestion(result)
     } catch (err) { setError('Failed to get suggestion. Please try again.') }
     finally { setLoading(false) }
