@@ -36,7 +36,7 @@ export default function AppLayout() {
       {/* Sidebar Desktop */}
       <aside className="hidden md:flex flex-col w-64 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800">
         <div className="p-6 flex items-center gap-3">
-          <img src="/logo.png" alt="Logo" className="w-10 h-10 rounded-xl shadow-lg object-cover" />
+          <img src="/InfraNaut logo.jpeg" alt="Logo" className="w-10 h-10 rounded-xl shadow-lg object-cover" />
           <div>
             <h1 className="text-xl font-black text-slate-900 dark:text-white leading-none tracking-tight">InfraNaut</h1>
             <p className="text-[10px] text-teal-600 dark:text-teal-400 font-bold uppercase tracking-widest mt-1">Smart City</p>

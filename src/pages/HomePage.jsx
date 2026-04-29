@@ -185,7 +185,7 @@ export default function HomePage() {
       {/* Header */}
       <header className="absolute top-0 left-0 right-0 z-20 flex items-center justify-between px-6 md:px-8 py-5">
         <div className="flex items-center gap-2 relative z-10">
-          <img src="/logo.png" alt="InfraNaut Logo" className="w-10 h-10 rounded-xl shadow-lg object-cover border border-slate-200 dark:border-slate-800" />
+          <img src="/InfraNaut logo.jpeg" alt="InfraNaut Logo" className="w-10 h-10 rounded-xl shadow-lg object-cover border border-slate-200 dark:border-slate-800" />
           <span className="text-xl font-bold text-slate-900 dark:text-white">InfraNaut AI</span>
         </div>
         <div className="flex items-center gap-3">
