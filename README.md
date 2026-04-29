@@ -29,7 +29,7 @@ Run `supabase/migrations/001_initial_schema.sql` in the Supabase SQL Editor.
 
 ## 🤖 Nexora
 
-Nexora is the AI assistant powered by Claude via OpenRouter. She appears in: Chat, Community rooms (`@Nexora`), Analytics prediction cards, Eco-Route advisor, and Dashboard insights.
+Nexora is the AI assistant powered by OpenRouter. She appears in: Chat, Community rooms (`@Nexora`), Analytics prediction cards, Eco-Route advisor, and Dashboard insights.
 
 ## 🎮 Points System
 
