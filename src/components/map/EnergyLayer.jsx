@@ -1,5 +1,6 @@
 import { Polygon, Popup } from 'react-leaflet'
 import { useCityStore } from '../../stores/cityStore'
+import { memo } from 'react'
 
 function getEnergyColor(intensity) {
   if (intensity > 0.8) return { color: '#ef4444', fill: 'rgba(239,68,68,0.2)' }
@@ -7,7 +8,7 @@ function getEnergyColor(intensity) {
   return { color: '#22c55e', fill: 'rgba(34,197,94,0.12)' }
 }
 
-export default function EnergyLayer() {
+function EnergyLayer() {
   const zones = useCityStore(s => s.energyZones)
 
   return (
@@ -44,3 +45,5 @@ export default function EnergyLayer() {
     </>
   )
 }
+
+export default memo(EnergyLayer)

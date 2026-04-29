@@ -1,5 +1,6 @@
 import { CircleMarker, Popup } from 'react-leaflet'
 import { useCityStore } from '../../stores/cityStore'
+import { memo } from 'react'
 
 function getParkingColor(available, capacity) {
   const ratio = available / capacity
@@ -8,7 +9,7 @@ function getParkingColor(available, capacity) {
   return '#ef4444'                     // Red - full
 }
 
-export default function ParkingLayer() {
+function ParkingLayer() {
   const spots = useCityStore(s => s.parkingSpots)
 
   return (
@@ -58,3 +59,5 @@ export default function ParkingLayer() {
     </>
   )
 }
+
+export default memo(ParkingLayer)

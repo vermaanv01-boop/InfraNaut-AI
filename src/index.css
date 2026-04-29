@@ -28,10 +28,16 @@
 
 @layer components {
   .card {
-    @apply bg-white border border-slate-200 rounded-xl p-5 shadow-sm transition-colors;
+    @apply bg-white border border-slate-200 rounded-xl p-5 shadow-sm transition-all duration-200;
   }
   .dark .card {
     @apply bg-slate-900 border-slate-800 shadow-none;
+  }
+  .card:hover {
+    @apply shadow-md;
+  }
+  .dark .card:hover {
+    @apply shadow-none border-slate-700;
   }
 
   .inp {
@@ -42,18 +48,18 @@
   }
 
   .btn-primary {
-    @apply inline-flex items-center justify-center gap-2 bg-primary-600 hover:bg-primary-700 text-white font-medium rounded-lg px-4 py-2 text-sm transition-colors shadow-sm;
+    @apply inline-flex items-center justify-center gap-2 bg-primary-600 hover:bg-primary-700 text-white font-medium rounded-lg px-4 py-2 text-sm transition-all shadow-sm hover:shadow-md active:scale-[0.98];
   }
   
   .btn-secondary {
-    @apply inline-flex items-center justify-center gap-2 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 font-medium rounded-lg px-4 py-2 text-sm transition-colors shadow-sm;
+    @apply inline-flex items-center justify-center gap-2 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 font-medium rounded-lg px-4 py-2 text-sm transition-all shadow-sm active:scale-[0.98];
   }
   .dark .btn-secondary {
     @apply bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-200;
   }
 
   .btn-ghost {
-    @apply inline-flex items-center justify-center gap-2 hover:bg-slate-100 text-slate-600 font-medium rounded-lg px-4 py-2 text-sm transition-colors;
+    @apply inline-flex items-center justify-center gap-2 hover:bg-slate-100 text-slate-600 font-medium rounded-lg px-4 py-2 text-sm transition-all active:scale-[0.98];
   }
   .dark .btn-ghost {
     @apply hover:bg-slate-800 text-slate-300;
@@ -79,6 +85,22 @@
   .user-message {
     @apply bg-primary-600 text-white rounded-xl rounded-tr-sm;
   }
+}
+
+/* Dashboard panel styling */
+.dashboard-panel {
+  animation: panel-enter 0.4s ease-out both;
+}
+.dashboard-panel:nth-child(1) { animation-delay: 0ms; }
+.dashboard-panel:nth-child(2) { animation-delay: 60ms; }
+.dashboard-panel:nth-child(3) { animation-delay: 120ms; }
+.dashboard-panel:nth-child(4) { animation-delay: 180ms; }
+.dashboard-panel:nth-child(5) { animation-delay: 240ms; }
+.dashboard-panel:nth-child(6) { animation-delay: 300ms; }
+
+@keyframes panel-enter {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 /* Scrollbar styling */
@@ -135,6 +157,11 @@
 }
 .animate-badge-pop {
   animation: badge-pop 0.4s ease-out both;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
 }
 
 /* Typing dots */
@@ -194,4 +221,15 @@
 @keyframes toast-slide-in {
   from { transform: translateX(100%); opacity: 0; }
   to { transform: translateX(0); opacity: 1; }
+}
+
+/* Custom scrollbar for dashboard panels */
+.custom-scrollbar::-webkit-scrollbar { width: 4px; }
+.custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+.custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(34,211,238,0.3); border-radius: 4px; }
+.custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(34,211,238,0.6); }
+
+/* Responsive breakpoint for extra-small screens */
+@media (min-width: 480px) {
+  .xs\:inline { display: inline; }
 }

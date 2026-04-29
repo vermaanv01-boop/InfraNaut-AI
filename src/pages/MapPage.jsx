@@ -102,11 +102,18 @@ export default function MapPage() {
 
     setError(''); setSubmitting(true)
     try {
-      const path = `reports/${user.id}/${Date.now()}.jpg`
-      const { error: uploadErr } = await supabase.storage.from('report-images').upload(path, imageFile, { contentType: 'image/jpeg' })
-      if (uploadErr) throw new Error(`Upload failed: ${uploadErr.message}`)
-
-      const { data: { publicUrl } } = supabase.storage.from('report-images').getPublicUrl(path)
+      const formData = new FormData()
+      formData.append('file', imageFile)
+      
+      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001'
+      const uploadRes = await fetch(`${backendUrl}/api/upload/reports`, {
+        method: 'POST',
+        body: formData,
+      })
+      
+      if (!uploadRes.ok) throw new Error('Failed to upload image to backend')
+      const uploadData = await uploadRes.json()
+      const publicUrl = uploadData.file.url
 
       const { data: report, error: reportErr } = await supabase.from('reports')
         .insert({ user_id: user.id, category: form.category, description: form.description, image_url: publicUrl, latitude: pinLocation.lat, longitude: pinLocation.lng, zone: form.zone, status: 'pending' })

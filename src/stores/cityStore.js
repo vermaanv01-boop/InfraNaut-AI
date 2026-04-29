@@ -17,7 +17,6 @@ function predictParking(spot, hour) {
 }
 
 function getTrafficColor(hour, segmentIndex) {
-  // Rush hours → more red; night → green
   const isPeakMorning = hour >= 8 && hour <= 10
   const isPeakEvening = hour >= 17 && hour <= 20
   const isNight = hour >= 22 || hour <= 5
@@ -62,9 +61,10 @@ export const useCityStore = create((set, get) => ({
   layers: { traffic: true, parking: true, waste: false, energy: false },
   toggleLayer: (key) => set(s => ({ layers: { ...s.layers, [key]: !s.layers[key] } })),
 
-  // Traffic
-  trafficSegments: [],
-  trafficLevel: 0,       // 0-100
+  // Traffic — store full route coords, derive colored segments
+  trafficRoutes: [],   // [{id, name, coords: [[lat,lng],...]}]
+  trafficSegments: [], // derived colored segments for rendering
+  trafficLevel: 0,
   fetchTrafficRoutes: async () => {
     try {
       const fetchRoute = async ({ start, end }) => {
@@ -74,25 +74,36 @@ export const useCityStore = create((set, get) => ({
         return []
       }
       const results = await Promise.all(TRAFFIC_ROUTE_ENDPOINTS.map(fetchRoute))
-      const hour = new Date().getHours()
-      const segments = []
-      results.forEach(coords => {
-        for (let i = 0; i < coords.length - 1; i++) {
-          segments.push({ positions: [coords[i], coords[i + 1]], color: getTrafficColor(hour, i) })
-        }
-      })
-      const red = segments.filter(s => s.color === '#ef4444').length
-      const trafficLevel = segments.length ? Math.round((red / segments.length) * 100) : 0
-      set({ trafficSegments: segments, trafficLevel })
+      const routes = results.map((coords, i) => ({
+        id: TRAFFIC_ROUTE_ENDPOINTS[i].id,
+        name: TRAFFIC_ROUTE_ENDPOINTS[i].name,
+        coords,
+      })).filter(r => r.coords.length >= 2)
+      set({ trafficRoutes: routes })
+      get().refreshTrafficColors()
     } catch (err) { console.warn('OSRM fetch failed:', err) }
   },
   refreshTrafficColors: () => {
-    const { trafficSegments } = get()
-    if (!trafficSegments.length) return
+    const { trafficRoutes } = get()
+    if (!trafficRoutes.length) return
     const hour = new Date().getHours()
-    const updated = trafficSegments.map((seg, i) => ({ ...seg, color: getTrafficColor(hour, i) }))
-    const red = updated.filter(s => s.color === '#ef4444').length
-    set({ trafficSegments: updated, trafficLevel: Math.round((red / updated.length) * 100) })
+    const segments = []
+    let totalChunks = 0, redChunks = 0
+
+    trafficRoutes.forEach(route => {
+      if (route.coords.length < 2) return
+      // Group coords into ~8 colored segments per route for smooth rendering
+      const chunkSize = Math.max(3, Math.ceil(route.coords.length / 8))
+      for (let i = 0; i < route.coords.length - 1; i += chunkSize) {
+        const end = Math.min(i + chunkSize + 1, route.coords.length)
+        const color = getTrafficColor(hour, totalChunks)
+        segments.push({ positions: route.coords.slice(i, end), color })
+        totalChunks++
+        if (color === '#ef4444') redChunks++
+      }
+    })
+    const trafficLevel = totalChunks ? Math.round((redChunks / totalChunks) * 100) : 0
+    set({ trafficSegments: segments, trafficLevel })
   },
 
   // Parking
@@ -157,6 +168,87 @@ export const useCityStore = create((set, get) => ({
     } catch { set({ aqi: { value: 42, label: 'Good', color: '#22c55e' } }) }
   },
 
+  // ── Alerts system ─────────────────────────────────────────
+  getAlerts: () => {
+    const { weather, aqi, trafficLevel, wasteBins, parkingSpots } = get()
+    const alerts = []
+    const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+
+    // Waste overflow alerts
+    const overflowBins = wasteBins.filter(b => b.status === 'overflow')
+    overflowBins.forEach(bin => {
+      alerts.push({
+        severity: 'critical',
+        title: `🗑️ Waste Overflow — ${bin.name}`,
+        summary: `Fill level at ${bin.fillLevel}%. Immediate pickup required.`,
+        details: `Bin "${bin.name}" has exceeded safe capacity at ${bin.fillLevel}% fill. Sanitation team dispatch recommended. Overflow risk increases bacterial contamination in the area.`,
+        location: bin.name,
+        time: now,
+      })
+    })
+
+    // Traffic alerts
+    if (trafficLevel > 70) {
+      alerts.push({
+        severity: 'critical',
+        title: '🚦 Heavy Traffic Congestion',
+        summary: `City-wide congestion at ${trafficLevel}%. Multiple corridors affected.`,
+        details: `Traffic congestion has reached ${trafficLevel}% across monitored corridors. Consider alternate routes or delay non-essential travel. Peak hours typically see 40-60% congestion.`,
+        location: 'City-wide',
+        time: now,
+      })
+    } else if (trafficLevel > 40) {
+      alerts.push({
+        severity: 'warning',
+        title: '🚦 Moderate Traffic',
+        summary: `Congestion at ${trafficLevel}%. Some corridors busy.`,
+        details: `Traffic is moderately congested at ${trafficLevel}%. Main arterial roads may experience delays of 5-15 minutes.`,
+        location: 'Major corridors',
+        time: now,
+      })
+    }
+
+    // Parking alerts
+    const fullLots = parkingSpots.filter(p => p.available <= 5)
+    if (fullLots.length > 0) {
+      alerts.push({
+        severity: 'warning',
+        title: `🅿️ ${fullLots.length} Parking Lot(s) Nearly Full`,
+        summary: `${fullLots.map(p => p.name).slice(0, 3).join(', ')} at capacity.`,
+        details: `The following parking lots have 5 or fewer spots available: ${fullLots.map(p => `${p.name} (${p.available}/${p.capacity})`).join(', ')}. Consider alternative locations.`,
+        location: fullLots[0]?.area,
+        time: now,
+      })
+    }
+
+    // AQI alerts
+    if (aqi && aqi.value > 100) {
+      alerts.push({
+        severity: aqi.value > 150 ? 'critical' : 'warning',
+        title: `💨 Air Quality — ${aqi.label}`,
+        summary: `AQI at ${aqi.value}. ${aqi.value > 150 ? 'Avoid outdoor activity.' : 'Sensitive groups should limit exposure.'}`,
+        details: `The Air Quality Index is at ${aqi.value} (${aqi.label}). ${aqi.value > 150 ? 'All citizens should minimize outdoor exposure. Use masks if going outside.' : 'People with respiratory conditions should limit prolonged outdoor exertion.'}`,
+        location: 'Bhopal Metro Area',
+        time: now,
+      })
+    }
+
+    // Weather alerts
+    const w = weather?.current
+    if (w && w.precipitation > 5) {
+      alerts.push({
+        severity: w.precipitation > 20 ? 'critical' : 'warning',
+        title: '🌧️ Heavy Rainfall Alert',
+        summary: `Precipitation: ${w.precipitation}mm. Possible waterlogging.`,
+        details: `Current precipitation is ${w.precipitation}mm. Low-lying areas may experience waterlogging. Drive carefully and avoid underpasses.`,
+        location: 'City-wide',
+        time: now,
+      })
+    }
+
+    return alerts
+  },
+
   // Build context string for AI
   getCityContext: () => {
     const { weather, aqi, parkingSpots, trafficLevel, wasteBins } = get()
@@ -179,6 +271,9 @@ export const useCityStore = create((set, get) => ({
   _intervals: [],
   initCity: () => {
     const store = get()
+    // Prevent double-init
+    if (store._intervals.length > 0) return
+
     store.fetchWeather()
     store.fetchAqi()
     store.refreshParking()
@@ -187,10 +282,10 @@ export const useCityStore = create((set, get) => ({
     store.fetchTrafficRoutes()
 
     const intervals = [
-      setInterval(() => get().refreshTrafficColors(), 4000),
-      setInterval(() => get().refreshParking(), 5000),
-      setInterval(() => get().refreshWaste(), 15000),
-      setInterval(() => get().refreshEnergy(), 10000),
+      setInterval(() => get().refreshTrafficColors(), 8000),  // Reduced from 4s to 8s
+      setInterval(() => get().refreshParking(), 10000),       // Reduced from 5s to 10s
+      setInterval(() => get().refreshWaste(), 20000),         // Reduced from 15s to 20s
+      setInterval(() => get().refreshEnergy(), 15000),        // Reduced from 10s to 15s
       setInterval(() => get().fetchWeather(), 600_000),
     ]
     set({ _intervals: intervals })

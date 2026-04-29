@@ -1,5 +1,6 @@
 import { CircleMarker, Popup } from 'react-leaflet'
 import { useCityStore } from '../../stores/cityStore'
+import { memo } from 'react'
 
 function getBinColor(status) {
   if (status === 'overflow') return '#ef4444'
@@ -7,7 +8,7 @@ function getBinColor(status) {
   return '#22c55e'
 }
 
-export default function WasteLayer() {
+function WasteLayer() {
   const bins = useCityStore(s => s.wasteBins)
 
   return (
@@ -44,3 +45,5 @@ export default function WasteLayer() {
     </>
   )
 }
+
+export default memo(WasteLayer)

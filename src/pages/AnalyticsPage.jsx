@@ -59,7 +59,11 @@ export default function AnalyticsPage() {
   const [generating, setGenerating] = useState(false)
   const [reportStats, setReportStats] = useState([])
 
-  useEffect(() => { fetchPredictions(); fetchReportStats(); initCity() }, [])
+  useEffect(() => {
+    fetchPredictions()
+    fetchReportStats()
+    initCity()
+  }, [])
 
   const fetchPredictions = async () => {
     const { data } = await supabase.from('predictions').select('*').order('created_at', { ascending: false }).limit(12)
@@ -129,7 +133,7 @@ export default function AnalyticsPage() {
       </div>
 
       {/* Summary cards */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {[
           { label: 'Total Insights', value: predictions.length, icon: TrendingUp, color: 'text-teal-500' },
           { label: 'High Risk Zones', value: highRisk, icon: AlertTriangle, color: 'text-red-400' },

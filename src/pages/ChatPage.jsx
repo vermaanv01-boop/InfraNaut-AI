@@ -28,22 +28,22 @@ function ChatMessage({ msg, currentUserId }) {
             <span className="text-[11px] font-semibold text-teal-400">Nexora</span>
             <span className="text-[9px] text-slate-500">AI · {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
           </div>
-          <div className="nexora-message p-2.5 text-xs text-slate-200 leading-relaxed max-w-sm">{msg.content}</div>
+          <div className="nexora-message p-2.5 text-xs text-slate-700 dark:text-slate-200 leading-relaxed max-w-sm">{msg.content}</div>
         </div>
       </div>
     )
   }
   return (
     <div className={`flex gap-2.5 ${isOwn ? 'flex-row-reverse' : ''} animate-fade-in-up`}>
-      <div className={`w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0 ${isOwn ? 'bg-teal-700' : 'bg-slate-700'}`}>
+      <div className={`w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white flex-shrink-0 ${isOwn ? 'bg-teal-600' : 'bg-slate-400 dark:bg-slate-700'}`}>
         {(msg.profiles?.display_name || 'U').slice(0, 2).toUpperCase()}
       </div>
       <div className={isOwn ? 'items-end flex flex-col' : ''}>
         <div className="flex items-center gap-1.5 mb-1">
-          {!isOwn && <span className="text-[11px] font-medium text-slate-300">{msg.profiles?.display_name || 'User'}</span>}
+          {!isOwn && <span className="text-[11px] font-medium text-slate-700 dark:text-slate-300">{msg.profiles?.display_name || 'User'}</span>}
           <span className="text-[9px] text-slate-500">{new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
         </div>
-        <div className={`p-2.5 text-xs leading-relaxed max-w-xs ${isOwn ? 'user-message' : 'bg-slate-800/60 rounded-lg text-slate-200'}`}>
+        <div className={`p-2.5 text-xs leading-relaxed max-w-xs ${isOwn ? 'user-message' : 'bg-slate-100 dark:bg-slate-800/60 rounded-lg text-slate-700 dark:text-slate-200'}`}>
           {msg.content}
         </div>
       </div>
@@ -108,11 +108,11 @@ export default function ChatPage() {
   const handleKey = (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage() } }
 
   return (
-    <div className="flex h-[calc(100vh-48px)] -m-6 overflow-hidden rounded-xl" style={{ border: '1px solid rgba(20,184,166,0.1)' }}>
+    <div className="flex h-[calc(100vh-48px)] -m-6 overflow-hidden rounded-xl border border-slate-200 dark:border-teal-900/20">
       {/* Room list */}
-      <div className="w-56 flex flex-col border-r border-slate-800/60 bg-slate-900/50 flex-shrink-0">
-        <div className="p-3 border-b border-slate-800/60">
-          <div className="text-xs font-semibold text-slate-300 mb-1">Community Chat</div>
+      <div className="w-56 flex flex-col border-r border-slate-200 dark:border-slate-800/60 bg-slate-50 dark:bg-slate-900/50 flex-shrink-0">
+        <div className="p-3 border-b border-slate-200 dark:border-slate-800/60">
+          <div className="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Community Chat</div>
           <div className="text-[10px] text-teal-400 flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-teal-400 animate-pulse" />{onlineCount} online</div>
         </div>
         <div className="flex-1 overflow-y-auto p-2 space-y-0.5">
@@ -124,16 +124,16 @@ export default function ChatPage() {
             </button>
           ))}
         </div>
-        <div className="p-3 border-t border-slate-800/60 text-[10px] text-slate-500">
-          Tip: Type <span className="text-teal-400 font-medium">@Nexora</span> to ask Nexora
+        <div className="p-3 border-t border-slate-200 dark:border-slate-800/60 text-[10px] text-slate-500">
+          Tip: Type <span className="text-teal-600 dark:text-teal-400 font-medium">@Nexora</span> to ask Nexora
         </div>
       </div>
       {/* Chat area */}
       <div className="flex-1 flex flex-col">
-        <div className="flex items-center justify-between px-4 py-3 border-b border-slate-800/60 bg-slate-900/30">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 dark:border-slate-800/60 bg-slate-50 dark:bg-slate-900/30">
           <div className="flex items-center gap-2">
             <Hash size={14} className="text-teal-500" />
-            <span className="text-sm font-semibold text-white">{rooms.find(r => r.id === activeRoom)?.name}</span>
+            <span className="text-sm font-semibold text-slate-900 dark:text-white">{rooms.find(r => r.id === activeRoom)?.name}</span>
           </div>
           <div className="flex items-center gap-1 text-[10px] text-slate-500">
             <Users size={11} /> {onlineCount} members
@@ -151,7 +151,7 @@ export default function ChatPage() {
           )}
           <div ref={messagesEndRef} />
         </div>
-        <div className="p-3 border-t border-slate-800/60 bg-slate-900/30">
+        <div className="p-3 border-t border-slate-200 dark:border-slate-800/60 bg-slate-50 dark:bg-slate-900/30">
           <div className="flex gap-2 items-end">
             <input className="inp flex-1 text-sm py-2.5" placeholder={`Message #${rooms.find(r => r.id === activeRoom)?.name}... (use @Nexora to ask AI)`}
               value={input} onChange={e => setInput(e.target.value)} onKeyDown={handleKey} />
