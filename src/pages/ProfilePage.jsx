@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useAuthStore } from '../stores/authStore'
 import { usePointsStore } from '../stores/pointsStore'
 import { supabase } from '../lib/supabase'
@@ -10,28 +10,31 @@ export default function ProfilePage() {
   const { badges, fetchBadges } = usePointsStore()
   const [reports, setReports] = useState([])
   const [editing, setEditing] = useState(false)
-  const [form, setForm] = useState({ display_name: '', zone: '' })
+  const [form, setForm] = useState(() => ({ display_name: profile?.display_name || '', zone: profile?.zone || BHOPAL_WARDS[0] }))
   const [saving, setSaving] = useState(false)
   const [transactions, setTransactions] = useState([])
+
+  const fetchReports = useCallback(async () => {
+    const { data } = await supabase.from('reports').select('*').eq('user_id', user.id).order('created_at', { ascending: false }).limit(10)
+    setReports(data || [])
+  }, [user])
+
+  const fetchTransactions = useCallback(async () => {
+    const { data } = await supabase.from('point_transactions').select('*').eq('user_id', user.id).order('created_at', { ascending: false }).limit(10)
+    setTransactions(data || [])
+  }, [user])
 
   useEffect(() => {
     if (user) {
       fetchBadges(user.id)
       fetchReports()
       fetchTransactions()
-      setForm({ display_name: profile?.display_name || '', zone: profile?.zone || BHOPAL_WARDS[0] })
     }
-  }, [user, profile])
+  }, [user, profile, fetchBadges, fetchReports, fetchTransactions])
 
-  const fetchReports = async () => {
-    const { data } = await supabase.from('reports').select('*').eq('user_id', user.id).order('created_at', { ascending: false }).limit(10)
-    setReports(data || [])
-  }
-
-  const fetchTransactions = async () => {
-    const { data } = await supabase.from('point_transactions').select('*').eq('user_id', user.id).order('created_at', { ascending: false }).limit(10)
-    setTransactions(data || [])
-  }
+  useEffect(() => {
+    setForm({ display_name: profile?.display_name || '', zone: profile?.zone || BHOPAL_WARDS[0] })
+  }, [profile])
 
   const saveProfile = async () => {
     setSaving(true)

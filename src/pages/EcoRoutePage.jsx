@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useAuthStore } from '../stores/authStore'
 import { usePointsStore } from '../stores/pointsStore'
 import { useCityStore } from '../stores/cityStore'
@@ -22,12 +22,7 @@ export default function EcoRoutePage() {
   const [error, setError] = useState('')
   const [showHistory, setShowHistory] = useState(false)
 
-  // Load saved routes on mount
-  useEffect(() => {
-    if (user) loadSavedRoutes()
-  }, [user])
-
-  const loadSavedRoutes = async () => {
+  const loadSavedRoutes = useCallback(async () => {
     setLoadingSaved(true)
     try {
       const { data, error: fetchErr } = await supabase
@@ -43,7 +38,12 @@ export default function EcoRoutePage() {
     } finally {
       setLoadingSaved(false)
     }
-  }
+  }, [user])
+
+  // Load saved routes on mount
+  useEffect(() => {
+    if (user) loadSavedRoutes()
+  }, [user, loadSavedRoutes])
 
   const getSuggestion = async () => {
     if (!origin.trim() || !destination.trim()) {

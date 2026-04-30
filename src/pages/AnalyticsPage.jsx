@@ -1,12 +1,11 @@
-import { useState, useEffect } from 'react'
-import { useAuthStore } from '../stores/authStore'
+import { useState, useEffect, useCallback } from 'react'
 import { useCityStore } from '../stores/cityStore'
 import { nexoraCompletion } from '../lib/openrouter'
 import { supabase } from '../lib/supabase'
 import { REPORT_CATEGORIES } from '../utils/constants'
 import NexoraAvatar from '../components/nexora/NexoraAvatar'
 import { RefreshCw, Loader2, TrendingUp, AlertTriangle, Shield } from 'lucide-react'
-import { BarChart, Bar, LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts'
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts'
 
 const PIE_COLORS = ['#84cc16', '#f59e0b', '#8b5cf6', '#3b82f6', '#ef4444', '#94a3b8']
 
@@ -47,30 +46,23 @@ function PredictionCard({ prediction, index }) {
 }
 
 export default function AnalyticsPage() {
-  const { user } = useAuthStore()
   const getCityContext = useCityStore(s => s.getCityContext)
   const weather = useCityStore(s => s.weather)
-  const aqi = useCityStore(s => s.aqi)
   const parkingSpots = useCityStore(s => s.parkingSpots)
-  const trafficLevel = useCityStore(s => s.trafficLevel)
   const initCity = useCityStore(s => s.initCity)
+  const destroyCity = useCityStore(s => s.destroyCity)
 
   const [predictions, setPredictions] = useState([])
   const [generating, setGenerating] = useState(false)
+  const [genError, setGenError] = useState('')
   const [reportStats, setReportStats] = useState([])
 
-  useEffect(() => {
-    fetchPredictions()
-    fetchReportStats()
-    initCity()
-  }, [])
-
-  const fetchPredictions = async () => {
+  const fetchPredictions = useCallback(async () => {
     const { data } = await supabase.from('predictions').select('*').order('created_at', { ascending: false }).limit(12)
     setPredictions(data || [])
-  }
+  }, [])
 
-  const fetchReportStats = async () => {
+  const fetchReportStats = useCallback(async () => {
     const { data } = await supabase.from('reports').select('category').limit(500)
     if (data) {
       const counts = {}
@@ -78,13 +70,27 @@ export default function AnalyticsPage() {
       const stats = REPORT_CATEGORIES.map(c => ({ name: c.label, value: counts[c.id] || 0, color: c.color }))
       setReportStats(stats)
     }
-  }
+  }, [])
+
+  useEffect(() => {
+    fetchPredictions()
+    fetchReportStats()
+    initCity()
+    return () => destroyCity()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const generatePredictions = async () => {
     setGenerating(true)
+    setGenError('')
     try {
-      const { data: reports } = await supabase.from('reports').select('*').order('created_at', { ascending: false }).limit(100)
-      if (!reports?.length) { setGenerating(false); return }
+      const { data: reports, error: repErr } = await supabase.from('reports').select('*').order('created_at', { ascending: false }).limit(100)
+      if (repErr) throw new Error(`Could not fetch reports: ${repErr.message}`)
+      if (!reports?.length) {
+        setGenError('No citizen reports found yet. Submit reports via the City Map to generate AI insights.')
+        setGenerating(false)
+        return
+      }
 
       const cityContext = getCityContext()
       const zones = [...new Set(reports.map(r => r.zone).filter(Boolean))].slice(0, 4)
@@ -102,15 +108,24 @@ export default function AnalyticsPage() {
         }], 200, cityContext)
 
         const risk_score = Math.min(0.95, (topCat.count / 10) + (weather?.current?.precipitation > 5 ? 0.2 : 0))
-        const { data: pred } = await supabase.from('predictions').insert({
+        const { data: pred, error: predErr } = await supabase.from('predictions').insert({
           zone, category: topCat.cat, risk_score, insight,
           weather_data: weather?.current || {}, report_count: zoneReports.length
         }).select().single()
+        if (predErr) console.warn('Prediction save error:', predErr.message)
         if (pred) newPredictions.push(pred)
       }
+
+      if (newPredictions.length === 0) {
+        setGenError('Insights generated but could not be saved. Check Supabase `predictions` table permissions.')
+      }
       setPredictions(prev => [...newPredictions, ...prev])
-    } catch (err) { console.error(err) }
-    finally { setGenerating(false) }
+    } catch (err) {
+      console.error('generatePredictions error:', err)
+      setGenError(err.message || 'Failed to generate insights. Check your OpenRouter API key.')
+    } finally {
+      setGenerating(false)
+    }
   }
 
   const avgRisk = predictions.length ? (predictions.reduce((s, p) => s + p.risk_score, 0) / predictions.length) : 0
@@ -131,6 +146,14 @@ export default function AnalyticsPage() {
           {generating ? 'Analyzing...' : 'Generate Insights'}
         </button>
       </div>
+
+      {/* Error banner */}
+      {genError && (
+        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/30 text-red-700 dark:text-red-400 text-xs rounded-xl px-4 py-3 flex items-start gap-2">
+          <AlertTriangle size={14} className="flex-shrink-0 mt-0.5" />
+          <span>{genError}</span>
+        </div>
+      )}
 
       {/* Summary cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">

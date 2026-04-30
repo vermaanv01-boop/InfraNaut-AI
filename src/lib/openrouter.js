@@ -1,6 +1,6 @@
 const OPENROUTER_API_KEY = import.meta.env.VITE_OPENROUTER_API_KEY
 const OPENROUTER_BASE_URL = 'https://openrouter.ai/api/v1'
-const MODEL = 'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free'
+const MODEL = 'google/gemma-3-12b-it:free'
 
 export const NEXORA_SYSTEM_PROMPT = `You are Nexora, the AI assistant for InfraNaut AI — a smart city platform focused on Bhopal, India.
 
@@ -74,7 +74,7 @@ export async function streamNexoraResponse(messages, onToken, onDone, signal, ci
         const parsed = JSON.parse(data)
         const token = parsed.choices?.[0]?.delta?.content
         if (token) onToken(token)
-      } catch (_) { /* skip malformed */ }
+      } catch { /* skip malformed */ }
     }
   }
   onDone()

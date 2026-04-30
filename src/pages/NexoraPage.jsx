@@ -28,19 +28,11 @@ export default function NexoraPage() {
   const abortRef = useRef(null)
   const inputRef = useRef(null)
 
-  useEffect(() => {
-    fetchConversations()
-    // Ensure city data is loaded for context
-    if (!weather) initCity()
-  }, [user])
-
-  useEffect(() => { scrollToBottom() }, [messages, streamContent])
-
-  const scrollToBottom = () => {
+  const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }
+  }, [])
 
-  const fetchConversations = async () => {
+  const fetchConversations = useCallback(async () => {
     if (!user) return
     const { data } = await supabase
       .from('ai_conversations')
@@ -48,7 +40,15 @@ export default function NexoraPage() {
       .eq('user_id', user.id)
       .order('updated_at', { ascending: false })
     setConversations(data || [])
-  }
+  }, [user])
+
+  useEffect(() => {
+    fetchConversations()
+    // Ensure city data is loaded for context
+    if (!weather) initCity()
+  }, [user, fetchConversations, weather, initCity])
+
+  useEffect(() => { scrollToBottom() }, [messages, streamContent, scrollToBottom])
 
   const loadConversation = async (convId) => {
     setActiveConvId(convId)
@@ -151,7 +151,7 @@ export default function NexoraPage() {
       setStreamContent('')
       setStreaming(false)
     }
-  }, [input, streaming, activeConvId, messages, user, awardPoints, getCityContext])
+  }, [input, streaming, activeConvId, messages, user, awardPoints, getCityContext, fetchConversations])
 
   const handleKey = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage() }

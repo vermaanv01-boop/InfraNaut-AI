@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useAuthStore } from '../stores/authStore'
 import { usePointsStore } from '../stores/pointsStore'
 import { useCityStore } from '../stores/cityStore'
@@ -52,17 +52,27 @@ function ChatMessage({ msg, currentUserId }) {
 }
 
 export default function ChatPage() {
-  const { user, profile } = useAuthStore()
+  const { user } = useAuthStore()
   const { awardPoints } = usePointsStore()
   const getCityContext = useCityStore(s => s.getCityContext)
-  const [rooms, setRooms] = useState(DEFAULT_ROOMS)
+  const [rooms] = useState(DEFAULT_ROOMS)
   const [activeRoom, setActiveRoom] = useState(DEFAULT_ROOMS[0].id)
   const [messages, setMessages] = useState([])
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
   const [nexoraTyping, setNexoraTyping] = useState(false)
-  const [onlineCount, setOnlineCount] = useState(Math.floor(Math.random() * 15) + 3)
+  const [onlineCount] = useState(5)
   const messagesEndRef = useRef(null)
+
+  const loadMessages = useCallback(async (roomId) => {
+    const { data } = await supabase
+      .from('chat_messages')
+      .select('*, profiles(display_name, username)')
+      .eq('room_id', roomId)
+      .order('created_at', { ascending: true })
+      .limit(50)
+    setMessages(data || [])
+  }, [])
 
   useEffect(() => {
     loadMessages(activeRoom)
@@ -72,19 +82,9 @@ export default function ChatPage() {
         (payload) => setMessages(prev => [...prev, payload.new])
       ).subscribe()
     return () => supabase.removeChannel(channel)
-  }, [activeRoom])
+  }, [activeRoom, loadMessages])
 
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages])
-
-  const loadMessages = async (roomId) => {
-    const { data } = await supabase
-      .from('chat_messages')
-      .select('*, profiles(display_name, username)')
-      .eq('room_id', roomId)
-      .order('created_at', { ascending: true })
-      .limit(50)
-    setMessages(data || [])
-  }
 
   const sendMessage = async () => {
     if (!input.trim() || sending) return

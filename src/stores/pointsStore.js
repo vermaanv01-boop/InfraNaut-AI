@@ -31,12 +31,6 @@ export const usePointsStore = create((set, get) => ({
   },
 
   checkBadges: async (userId) => {
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('total_points')
-      .eq('id', userId)
-      .single()
-
     const { data: existingBadges } = await supabase
       .from('badges')
       .select('badge_type')

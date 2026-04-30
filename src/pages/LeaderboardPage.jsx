@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuthStore } from '../stores/authStore'
 import { BADGE_DEFINITIONS, BHOPAL_WARDS } from '../utils/constants'
@@ -40,9 +40,7 @@ export default function LeaderboardPage() {
   const [loading, setLoading] = useState(true)
   const [zone, setZone] = useState('')
 
-  useEffect(() => { fetchLeaderboard() }, [tab, zone])
-
-  const fetchLeaderboard = async () => {
+  const fetchLeaderboard = useCallback(async () => {
     setLoading(true)
     let query = supabase
       .from('profiles')
@@ -53,7 +51,9 @@ export default function LeaderboardPage() {
     const { data } = await query
     setLeaders(data || [])
     setLoading(false)
-  }
+  }, [tab, zone])
+
+  useEffect(() => { fetchLeaderboard() }, [fetchLeaderboard])
 
   const currentUserRank = leaders.findIndex(l => l.id === user?.id) + 1
 

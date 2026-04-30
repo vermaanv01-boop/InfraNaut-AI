@@ -34,7 +34,7 @@ export default function App() {
     } else if (localStorage.getItem('theme') === 'dark') {
       document.documentElement.classList.add('dark')
     }
-  }, [])
+  }, [initialize])
 
   return (
     <BrowserRouter>

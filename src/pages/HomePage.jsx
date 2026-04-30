@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { Link, Navigate } from 'react-router-dom'
 import { useAuthStore } from '../stores/authStore'
-import { Activity, Map, Sun, Wind, BatteryCharging, ShieldCheck, Globe, Moon, X, ArrowRight, Sparkles, Car, ParkingMeter, Trash2, Zap } from 'lucide-react'
+import { Sun, Moon, X, ArrowRight, Sparkles, Car, ParkingMeter, Trash2, Zap, Wind } from 'lucide-react'
 
 const FEATURES = [
   {
@@ -160,16 +160,14 @@ function FeatureModal({ feature, onClose }) {
 
 export default function HomePage() {
   const { user } = useAuthStore()
-  const [isDark, setIsDark] = useState(false)
-  const [activeFeature, setActiveFeature] = useState(null)
-
-  useEffect(() => {
+  const [isDark, setIsDark] = useState(() => {
     const saved = localStorage.getItem('theme')
     const dark = saved === 'dark'
-    setIsDark(dark)
     if (dark) document.documentElement.classList.add('dark')
     else document.documentElement.classList.remove('dark')
-  }, [])
+    return dark
+  })
+  const [activeFeature, setActiveFeature] = useState(null)
 
   const toggleTheme = () => {
     const next = !isDark

@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useCityStore } from '../stores/cityStore'
 import {
   Leaf, Thermometer, Car, ParkingMeter, Trash2, Zap,
@@ -127,6 +128,7 @@ function StatCard({ icon: Icon, label, value, color = 'text-cyan-400' }) {
    MAIN DASHBOARD
    ═══════════════════════════════════════════════════════════ */
 export default function Dashboard() {
+  const navigate = useNavigate()
   const weather = useCityStore(s => s.weather)
   const aqi = useCityStore(s => s.aqi)
   const trafficLevel = useCityStore(s => s.trafficLevel)
@@ -230,10 +232,10 @@ export default function Dashboard() {
 
       {/* ── FLOATING COLUMNS ───────────────────────────────── */}
       <div className="relative z-10 flex-1 w-full px-4 flex justify-between pointer-events-none pb-4">
-        
+
         {/* LEFT COLUMN */}
         <div className="w-[340px] flex flex-col gap-2 pointer-events-auto overflow-y-auto custom-scrollbar pr-2 h-[calc(100vh-140px)]">
-          
+
           {/* Air Quality */}
           <Panel title="Air Quality">
             <div className="flex gap-3 h-24">
@@ -292,12 +294,12 @@ export default function Dashboard() {
 
         {/* RIGHT COLUMN */}
         <div className="w-[340px] flex flex-col gap-2 pointer-events-auto overflow-y-auto custom-scrollbar pl-2 h-[calc(100vh-140px)]">
-          
+
           {/* Weather Simulation */}
           <Panel title="Weather Simulation">
             <div className="grid grid-cols-2 gap-3 p-1">
               {['Sunny', 'Fog', 'Rain', 'Snow'].map((w_type, i) => (
-                <button key={w_type} className={`py-2 text-xs font-bold tracking-wider text-cyan-100 border border-[#1e88e5] rounded-[20px] bg-[#1e88e5]/10 hover:bg-[#1e88e5]/30 transition-colors ${i===0 ? 'shadow-[0_0_10px_rgba(30,136,229,0.5)] bg-[#1e88e5]/30' : ''}`}>
+                <button key={w_type} className={`py-2 text-xs font-bold tracking-wider text-cyan-100 border border-[#1e88e5] rounded-[20px] bg-[#1e88e5]/10 hover:bg-[#1e88e5]/30 transition-colors ${i === 0 ? 'shadow-[0_0_10px_rgba(30,136,229,0.5)] bg-[#1e88e5]/30' : ''}`}>
                   {w_type}
                 </button>
               ))}
@@ -306,7 +308,7 @@ export default function Dashboard() {
 
           {/* Parking Overview (Replacing Weekly Covid Case) */}
           <Panel title="Parking Overview" extra={
-            <button className="text-[10px] bg-[#1e88e5] text-white px-3 py-1 font-medium">
+            <button onClick={() => navigate('/app/map')} className="text-[10px] bg-[#1e88e5] hover:bg-[#1565c0] transition-colors text-white px-3 py-1 font-medium rounded-sm cursor-pointer">
               Track
             </button>
           }>

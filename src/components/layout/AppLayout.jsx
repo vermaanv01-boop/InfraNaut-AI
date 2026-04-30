@@ -1,7 +1,6 @@
-import { Outlet, NavLink, useNavigate } from 'react-router-dom'
-import { LayoutDashboard, Map as MapIcon, MessageSquare, LineChart, Route, Trophy, User, LogOut, Sun, Moon, Bot, Leaf } from 'lucide-react'
+import { Outlet, NavLink } from 'react-router-dom'
+import { LayoutDashboard, Map as MapIcon, MessageSquare, LineChart, Trophy, User, LogOut, Sun, Moon, Bot, Leaf } from 'lucide-react'
 import { useAuthStore } from '../../stores/authStore'
-import { usePointsStore } from '../../stores/pointsStore'
 import PointsFlash from '../gamification/PointsFlash'
 import { useState } from 'react'
 
