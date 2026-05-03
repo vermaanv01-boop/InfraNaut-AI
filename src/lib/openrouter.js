@@ -1,6 +1,6 @@
 const OPENROUTER_API_KEY = import.meta.env.VITE_OPENROUTER_API_KEY
 const OPENROUTER_BASE_URL = 'https://openrouter.ai/api/v1'
-const MODEL = 'google/gemma-3-12b-it:free'
+const MODEL = 'openai/gpt-oss-20b:free'
 
 export const NEXORA_SYSTEM_PROMPT = `You are Nexora, the AI assistant for InfraNaut AI — a smart city platform focused on Bhopal, India.
 
@@ -59,16 +59,21 @@ export async function streamNexoraResponse(messages, onToken, onDone, signal, ci
 
   const reader = response.body.getReader()
   const decoder = new TextDecoder()
+  let buffer = ''
 
   while (true) {
     const { done, value } = await reader.read()
     if (done) break
 
-    const chunk = decoder.decode(value, { stream: true })
-    const lines = chunk.split('\n').filter(l => l.startsWith('data: '))
+    buffer += decoder.decode(value, { stream: true })
+    const lines = buffer.split('\n')
+    buffer = lines.pop() || ''
 
     for (const line of lines) {
-      const data = line.slice(6).trim()
+      const trimmed = line.trim()
+      if (!trimmed || trimmed.startsWith(':')) continue
+      if (!trimmed.startsWith('data: ')) continue
+      const data = trimmed.slice(6).trim()
       if (data === '[DONE]') { onDone(); return }
       try {
         const parsed = JSON.parse(data)

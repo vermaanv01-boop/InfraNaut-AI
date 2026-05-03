@@ -12,6 +12,9 @@ import NexoraPage from './pages/NexoraPage'
 import EcoRoutePage from './pages/EcoRoutePage'
 import LeaderboardPage from './pages/LeaderboardPage'
 import ProfilePage from './pages/ProfilePage'
+import TourismPage from './pages/TourismPage'
+import EventPage from './pages/EventPage'
+import DigitalTwinPage from './pages/DigitalTwinPage'
 
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuthStore()
@@ -50,6 +53,9 @@ export default function App() {
           <Route path="eco-route" element={<EcoRoutePage />} />
           <Route path="leaderboard" element={<LeaderboardPage />} />
           <Route path="profile" element={<ProfilePage />} />
+          <Route path="tourism" element={<TourismPage />} />
+          <Route path="events" element={<EventPage />} />
+          <Route path="digital-twin" element={<DigitalTwinPage />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

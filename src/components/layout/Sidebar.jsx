@@ -1,7 +1,7 @@
 import { NavLink } from 'react-router-dom'
 import {
   LayoutDashboard, Map, MessageSquare, Bot,
-  BarChart2, Leaf, Trophy, User, LogOut
+  BarChart2, Leaf, Trophy, User, LogOut, Compass
 } from 'lucide-react'
 import NexoraAvatar from '../nexora/NexoraAvatar'
 import { useAuthStore } from '../../stores/authStore'
@@ -15,6 +15,7 @@ const NAV = [
   { path: '/eco-route',   label: 'Eco Route',   Icon: Leaf },
   { path: '/leaderboard', label: 'Leaderboard', Icon: Trophy },
   { path: '/profile',     label: 'Profile',     Icon: User },
+  { path: '/tourism',     label: 'Tourism AI',  Icon: Compass },
 ]
 
 export default function Sidebar() {

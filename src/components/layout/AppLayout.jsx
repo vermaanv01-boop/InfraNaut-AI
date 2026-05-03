@@ -1,5 +1,5 @@
 import { Outlet, NavLink } from 'react-router-dom'
-import { LayoutDashboard, Map as MapIcon, MessageSquare, LineChart, Trophy, User, LogOut, Sun, Moon, Bot, Leaf } from 'lucide-react'
+import { LayoutDashboard, Map as MapIcon, MessageSquare, LineChart, Trophy, User, LogOut, Sun, Moon, Bot, Leaf, Compass, Calendar, Globe } from 'lucide-react'
 import { useAuthStore } from '../../stores/authStore'
 import PointsFlash from '../gamification/PointsFlash'
 import { useState } from 'react'
@@ -13,6 +13,9 @@ const NAV_ITEMS = [
   { path: '/app/eco-route',  icon: Leaf,            label: 'Eco Route' },
   { path: '/app/leaderboard',icon: Trophy,          label: 'Leaderboard' },
   { path: '/app/profile',    icon: User,            label: 'Profile' },
+  { path: '/app/tourism',    icon: Compass,         label: 'Tourism AI' },
+  { path: '/app/events',     icon: Calendar,        label: 'Events AI', badge: 'NEW' },
+  { path: '/app/digital-twin', icon: Globe,          label: '3D Twin', badge: '3D' },
 ]
 
 export default function AppLayout() {

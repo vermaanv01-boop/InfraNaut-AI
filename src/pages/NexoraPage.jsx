@@ -3,6 +3,7 @@ import { useAuthStore } from '../stores/authStore'
 import { usePointsStore } from '../stores/pointsStore'
 import { useCityStore } from '../stores/cityStore'
 import { streamNexoraResponse } from '../lib/openrouter'
+import { chatWithRAG } from '../lib/anythingllm'
 import { supabase } from '../lib/supabase'
 import NexoraAvatar from '../components/nexora/NexoraAvatar'
 import NexoraMessage from '../components/nexora/NexoraMessage'
@@ -73,85 +74,63 @@ export default function NexoraPage() {
     const userContent = input.trim()
     setInput('')
 
-    // Create conversation if needed
-    let convId = activeConvId
-    if (!convId) {
-      const title = userContent.slice(0, 60)
-      const { data: conv } = await supabase
-        .from('ai_conversations')
-        .insert({ user_id: user.id, title })
-        .select()
-        .single()
-      convId = conv.id
-      setActiveConvId(convId)
-      setConversations(prev => [conv, ...prev])
-    }
-
-    // Save user message
-    const { data: userMsg } = await supabase
-      .from('ai_messages')
-      .insert({ conversation_id: convId, role: 'user', content: userContent })
-      .select().single()
-
-    const newMessages = [...messages, userMsg]
-    setMessages(newMessages)
-
-    // Award AI turn point
-    await awardPoints(user.id, 'AI_TURN')
-
-    // Build history for API
-    const history = newMessages.map(m => ({ role: m.role, content: m.content }))
-
-    // Get live city context for AI
-    const cityContext = getCityContext()
-
-    // Stream response
+    // Optimistically show user message immediately
+    const tempUserMsg = { id: `temp-${Date.now()}`, role: 'user', content: userContent, created_at: new Date().toISOString() }
+    setMessages(prev => [...prev, tempUserMsg])
     setStreaming(true)
     setStreamContent('')
-    abortRef.current = new AbortController()
 
+    // ── 1. Ensure conversation exists ───────────────────────
+    let convId = activeConvId
+    if (!convId && user) {
+      try {
+        const { data: conv } = await supabase
+          .from('ai_conversations')
+          .insert({ user_id: user.id, title: userContent.slice(0, 60) })
+          .select().single()
+        if (conv) { convId = conv.id; setActiveConvId(convId); setConversations(prev => [conv, ...prev]) }
+      } catch (e) { console.warn('Could not create conversation:', e) }
+    }
+
+    // ── 2. Persist user message ─────────────────────────────
+    if (convId && user) {
+      try {
+        await supabase.from('ai_messages').insert({ conversation_id: convId, role: 'user', content: userContent })
+        await supabase.from('chat_history').insert({ role: 'user', content: userContent, user_id: user.id })
+      } catch (e) { console.warn('Could not save user message:', e) }
+    }
+
+    // ── 3. Award points ────────────────────────────────────
+    if (user) { try { await awardPoints(user.id, 'AI_TURN') } catch {} }
+
+    // ── 4. Stream AI response ──────────────────────────────
     let fullContent = ''
     try {
-      await streamNexoraResponse(
-        history,
-        (token) => {
-          fullContent += token
-          setStreamContent(fullContent)
-        },
-        async () => {
-          // Save assistant message
-          const { data: assistantMsg } = await supabase
-            .from('ai_messages')
-            .insert({ conversation_id: convId, role: 'assistant', content: fullContent })
-            .select().single()
-
-          setMessages(prev => [...prev, assistantMsg])
-          setStreamContent('')
-          setStreaming(false)
-
-          // Update conversation timestamp
-          await supabase
-            .from('ai_conversations')
-            .update({ updated_at: new Date().toISOString() })
-            .eq('id', convId)
-
-          fetchConversations()
-        },
-        abortRef.current.signal,
-        cityContext
-      )
+      await chatWithRAG(userContent, (chunk) => {
+        fullContent += chunk
+        setStreamContent(fullContent)
+      })
     } catch (err) {
-      if (err.name !== 'AbortError') {
-        setMessages(prev => [...prev, {
-          id: 'err-' + Date.now(), role: 'assistant',
-          content: 'I encountered an error. Please try again.',
-          created_at: new Date().toISOString()
-        }])
-      }
-      setStreamContent('')
-      setStreaming(false)
+      console.error('[Nexora AI Error]', err)
+      fullContent = 'I encountered an error. Please try again.'
+    }
+
+    // ── 5. Show + persist assistant response ───────────────
+    const assistantMsg = { id: `ai-${Date.now()}`, role: 'assistant', content: fullContent, created_at: new Date().toISOString() }
+    setMessages(prev => [...prev, assistantMsg])
+    setStreamContent('')
+    setStreaming(false)
+
+    if (convId && user) {
+      try {
+        await supabase.from('ai_messages').insert({ conversation_id: convId, role: 'assistant', content: fullContent })
+        await supabase.from('chat_history').insert({ role: 'assistant', content: fullContent, user_id: user.id })
+        await supabase.from('ai_conversations').update({ updated_at: new Date().toISOString() }).eq('id', convId)
+        fetchConversations()
+      } catch (e) { console.warn('Could not save assistant message:', e) }
     }
   }, [input, streaming, activeConvId, messages, user, awardPoints, getCityContext, fetchConversations])
+
 
   const handleKey = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage() }

@@ -9,6 +9,7 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   CartesianGrid
 } from 'recharts'
+import PredictiveInsights from '../components/dashboard/PredictiveInsights'
 
 /* ═══════════════════════════════════════════════════════════
    ALERT MODAL
@@ -290,6 +291,19 @@ export default function Dashboard() {
             </div>
           </Panel>
 
+        </div>
+
+        {/* CENTER COLUMN - PREDICTIVE INSIGHTS */}
+        <div className="w-[420px] flex flex-col gap-2 pointer-events-auto h-[calc(100vh-140px)] animate-fade-in-up">
+          <div className="bg-[#0b1426]/90 backdrop-blur-md border border-cyan-500/40 shadow-[0_0_40px_rgba(6,182,212,0.2)] flex-1 overflow-hidden p-3 relative flex flex-col rounded-sm">
+            {/* Corner accents */}
+            <div className="absolute top-0 left-0 w-4 h-4 border-t-2 border-l-2 border-cyan-400" />
+            <div className="absolute top-0 right-0 w-4 h-4 border-t-2 border-r-2 border-cyan-400" />
+            <div className="absolute bottom-0 left-0 w-4 h-4 border-b-2 border-l-2 border-cyan-400" />
+            <div className="absolute bottom-0 right-0 w-4 h-4 border-b-2 border-r-2 border-cyan-400" />
+            
+            <PredictiveInsights />
+          </div>
         </div>
 
         {/* RIGHT COLUMN */}
