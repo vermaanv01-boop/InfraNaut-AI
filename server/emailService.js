@@ -51,16 +51,19 @@ async function processQueue() {
   if (isProcessing || emailQueue.length === 0) return
   isProcessing = true
   while (emailQueue.length > 0) {
-    const job = emailQueue.shift()
-    await sendEmail(job)
+    const { _resolve, ...job } = emailQueue.shift()
+    const result = await sendEmail(job)
+    if (_resolve) _resolve(result)
     if (emailQueue.length > 0) await new Promise(r => setTimeout(r, RATE_LIMIT_MS))
   }
   isProcessing = false
 }
 
 function enqueue(job) {
-  emailQueue.push(job)
-  processQueue()
+  return new Promise((resolve) => {
+    emailQueue.push({ ...job, _resolve: resolve })
+    processQueue()
+  })
 }
 
 // ── Public API ───────────────────────────────────────────────

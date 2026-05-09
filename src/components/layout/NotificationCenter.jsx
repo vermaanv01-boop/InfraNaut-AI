@@ -29,6 +29,11 @@ const SEVERITY = {
   },
 }
 
+// ── Stable key for an alert (used for dismiss + email dedup) ─
+function alertKey(a) {
+  return `${a.severity}:${a.title}`
+}
+
 // ── Individual Alert item ─────────────────────────────────
 function AlertItem({ alert, onDismiss, onExpand, expanded }) {
   const s = SEVERITY[alert.severity] || SEVERITY.info
@@ -37,7 +42,7 @@ function AlertItem({ alert, onDismiss, onExpand, expanded }) {
   return (
     <div
       className={`rounded-xl border px-3 py-2.5 transition-all cursor-pointer ${s.bg}`}
-      onClick={() => onExpand(alert.id)}
+      onClick={() => onExpand(alert.key)}
     >
       <div className="flex items-start gap-2">
         <Icon size={13} className={`${s.color} flex-shrink-0 mt-0.5`} />
@@ -45,7 +50,7 @@ function AlertItem({ alert, onDismiss, onExpand, expanded }) {
           <div className="flex items-center justify-between gap-1">
             <span className={`text-[11px] font-bold ${s.color} truncate`}>{alert.title}</span>
             <button
-              onClick={e => { e.stopPropagation(); onDismiss(alert.id) }}
+              onClick={e => { e.stopPropagation(); onDismiss(alert.key) }}
               className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-0.5 flex-shrink-0"
             >
               <X size={10} />
@@ -67,46 +72,78 @@ function AlertItem({ alert, onDismiss, onExpand, expanded }) {
 
 // ── Notification Center ───────────────────────────────────
 export default function NotificationCenter() {
-  const getAlerts = useCityStore(s => s.getAlerts)
-  const trafficLevel = useCityStore(s => s.trafficLevel)
-  const wasteBins = useCityStore(s => s.wasteBins)
+  // ✅ Fix 1: call getAlerts as a function reference, then invoke via
+  //    a computed selector so we re-run on every telemetry change.
+  const trafficLevel  = useCityStore(s => s.trafficLevel)
+  const wasteBins     = useCityStore(s => s.wasteBins)
+  const parkingSpots  = useCityStore(s => s.parkingSpots)
+  const aqi           = useCityStore(s => s.aqi)
+  const weather       = useCityStore(s => s.weather)
+  const getAlerts     = useCityStore(s => s.getAlerts)
+
   const { user, profile } = useAuthStore()
 
-  const [open, setOpen] = useState(false)
-  const [alerts, setAlerts] = useState([])
-  const [dismissed, setDismissed] = useState(new Set())
-  const [expanded, setExpanded] = useState(null)
+  const [open, setOpen]         = useState(false)
+  const [dismissed, setDismissed] = useState(new Set())  // Set of alertKey strings
+  const [expanded, setExpanded] = useState(null)          // alertKey string | null
   const [newCount, setNewCount] = useState(0)
-  const prevAlertsRef = useRef([])
-  const panelRef = useRef(null)
+
+  const panelRef  = useRef(null)
   const buttonRef = useRef(null)
   const [panelPos, setPanelPos] = useState({ top: 0, left: 0 })
 
-  // Refresh alerts when telemetry changes
+  // ✅ Fix 2: email dedup — only fire once per alertKey per session
+  const emailedRef = useRef(new Set())
+
+  // ── Derive fresh alerts whenever any telemetry slice changes ──
+  // ✅ Fix 3: all deps listed; getAlerts is stable (Zustand action ref)
+  const alerts = (() => {
+    const raw = getAlerts()
+    return raw
+      .filter(a => !dismissed.has(alertKey(a)))
+      .map(a => ({ ...a, key: alertKey(a) }))
+  })()
+
+  // ── Detect truly new alerts & fire emails (once per key) ─────
   useEffect(() => {
-    const fresh = getAlerts().filter(a => !dismissed.has(a.title + a.time))
-    const prevTitles = new Set(prevAlertsRef.current.map(a => a.title))
-    const newAlerts = fresh.filter(a => !prevTitles.has(a.title))
+    const fresh = getAlerts()
+      .filter(a => !dismissed.has(alertKey(a)))
+      .map(a => ({ ...a, key: alertKey(a) }))
 
-    if (newAlerts.length > 0 && !open) setNewCount(prev => prev + newAlerts.length)
+    const newAlerts = fresh.filter(a => !emailedRef.current.has(a.key))
 
-    // Fire email for new critical/warning alerts (fire-and-forget)
-    if (newAlerts.length > 0 && user?.email) {
+    if (newAlerts.length > 0 && !open) {
+      setNewCount(prev => prev + newAlerts.length)
+    }
+
+    // ✅ Fix 4: fire email only once per unique alertKey
+    if (user?.email) {
       newAlerts
         .filter(a => ['critical', 'warning'].includes(a.severity))
         .forEach(a => {
+          emailedRef.current.add(a.key)
           triggerCityAlertEmail(
-            { email: user.email, name: profile?.display_name || profile?.username, email_prefs: profile?.email_prefs },
-            { title: a.title, summary: a.message || a.title, severity: a.severity, location: a.location || 'Bhopal', time: a.time, category: a.category }
+            {
+              email: user.email,
+              name: profile?.display_name || profile?.username,
+              email_prefs: profile?.email_prefs,
+            },
+            {
+              title: a.title,
+              summary: a.message || a.summary,
+              severity: a.severity,
+              location: a.location || 'Bhopal',
+              time: a.time,
+              category: a.category,
+            }
           ).catch(() => {})
         })
     }
+  // Re-run when telemetry or dismissed changes — not when `open` changes
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [trafficLevel, wasteBins, parkingSpots, aqi, weather])
 
-    prevAlertsRef.current = fresh
-    setAlerts(fresh)
-  }, [trafficLevel, wasteBins, dismissed])
-
-  // Close on outside click
+  // ── Close on outside click ────────────────────────────────
   useEffect(() => {
     if (!open) return
     const handler = (e) => {
@@ -119,7 +156,6 @@ export default function NotificationCenter() {
   const handleOpen = () => {
     if (buttonRef.current) {
       const rect = buttonRef.current.getBoundingClientRect()
-      // Position panel to the right of button (or left-align if near right edge)
       const panelWidth = 320
       const left = rect.right + panelWidth > window.innerWidth
         ? rect.right - panelWidth
@@ -133,21 +169,17 @@ export default function NotificationCenter() {
     setNewCount(0)
   }
 
-  const handleDismiss = useCallback((id) => {
-    const alert = alerts.find(a => a.id === id)
-    if (alert) setDismissed(prev => new Set([...prev, alert.title + alert.time]))
-  }, [alerts])
+  const handleDismiss = useCallback((key) => {
+    setDismissed(prev => new Set([...prev, key]))
+  }, [])
 
   const handleClearAll = () => {
-    const keys = alerts.map(a => a.title + a.time)
+    const keys = alerts.map(a => a.key)
     setDismissed(prev => new Set([...prev, ...keys]))
-    setAlerts([])
   }
 
-  const handleExpand = (id) => setExpanded(prev => prev === id ? null : id)
+  const handleExpand = (key) => setExpanded(prev => prev === key ? null : key)
 
-  // Unique IDs for the alert list
-  const alertsWithIds = alerts.map((a, i) => ({ ...a, id: i }))
   const criticalCount = alerts.filter(a => a.severity === 'critical').length
 
   return (
@@ -174,7 +206,7 @@ export default function NotificationCenter() {
       {/* Panel — fixed position to escape sidebar overflow clipping */}
       {open && (
         <>
-          {/* Backdrop — closes panel on outside click */}
+          {/* Backdrop */}
           <div
             className="fixed inset-0 z-[9998]"
             onClick={() => setOpen(false)}
@@ -184,59 +216,59 @@ export default function NotificationCenter() {
             style={{ position: 'fixed', top: panelPos.top, left: panelPos.left, zIndex: 9999, width: 320 }}
             className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-2xl overflow-hidden animate-slide-in-right"
           >
-          {/* Header */}
-          <div className="p-3 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Bell size={14} className="text-slate-500" />
-              <span className="text-sm font-bold text-slate-900 dark:text-white">City Alerts</span>
-              {alerts.length > 0 && (
-                <span className="text-[9px] bg-red-500/10 text-red-400 border border-red-500/20 px-1.5 py-0.5 rounded-full font-bold">
-                  {alerts.length}
-                </span>
-              )}
-            </div>
-            <div className="flex items-center gap-1">
-              {alerts.length > 0 && (
-                <button
-                  onClick={handleClearAll}
-                  className="text-[10px] text-slate-400 hover:text-red-400 flex items-center gap-1 px-2 py-1 rounded-lg hover:bg-red-500/5 transition-colors"
-                >
-                  <Trash2 size={10} />
-                  Clear all
-                </button>
-              )}
-              <button onClick={() => setOpen(false)} className="p-1 text-slate-400 hover:text-slate-600">
-                <X size={14} />
-              </button>
-            </div>
-          </div>
-
-          {/* Alert list */}
-          <div className="max-h-80 overflow-y-auto p-2 space-y-2">
-            {alertsWithIds.length === 0 ? (
-              <div className="text-center py-8">
-                <CheckCircle size={28} className="text-green-400 mx-auto mb-2" />
-                <p className="text-xs text-slate-500 font-medium">All clear!</p>
-                <p className="text-[10px] text-slate-400">No active city alerts</p>
+            {/* Header */}
+            <div className="p-3 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Bell size={14} className="text-slate-500" />
+                <span className="text-sm font-bold text-slate-900 dark:text-white">City Alerts</span>
+                {alerts.length > 0 && (
+                  <span className="text-[9px] bg-red-500/10 text-red-400 border border-red-500/20 px-1.5 py-0.5 rounded-full font-bold">
+                    {alerts.length}
+                  </span>
+                )}
               </div>
-            ) : alertsWithIds.map(alert => (
-              <AlertItem
-                key={alert.id}
-                alert={alert}
-                onDismiss={handleDismiss}
-                onExpand={handleExpand}
-                expanded={expanded === alert.id}
-              />
-            ))}
-          </div>
+              <div className="flex items-center gap-1">
+                {alerts.length > 0 && (
+                  <button
+                    onClick={handleClearAll}
+                    className="text-[10px] text-slate-400 hover:text-red-400 flex items-center gap-1 px-2 py-1 rounded-lg hover:bg-red-500/5 transition-colors"
+                  >
+                    <Trash2 size={10} />
+                    Clear all
+                  </button>
+                )}
+                <button onClick={() => setOpen(false)} className="p-1 text-slate-400 hover:text-slate-600">
+                  <X size={14} />
+                </button>
+              </div>
+            </div>
 
-          {/* Footer */}
-          <div className="px-3 py-2 border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50">
-            <p className="text-[9px] text-slate-400 text-center">
-              Alerts auto-generated from live IoT telemetry · Click an alert for details
-            </p>
+            {/* Alert list */}
+            <div className="max-h-80 overflow-y-auto p-2 space-y-2">
+              {alerts.length === 0 ? (
+                <div className="text-center py-8">
+                  <CheckCircle size={28} className="text-green-400 mx-auto mb-2" />
+                  <p className="text-xs text-slate-500 font-medium">All clear!</p>
+                  <p className="text-[10px] text-slate-400">No active city alerts</p>
+                </div>
+              ) : alerts.map(alert => (
+                <AlertItem
+                  key={alert.key}
+                  alert={alert}
+                  onDismiss={handleDismiss}
+                  onExpand={handleExpand}
+                  expanded={expanded === alert.key}
+                />
+              ))}
+            </div>
+
+            {/* Footer */}
+            <div className="px-3 py-2 border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50">
+              <p className="text-[9px] text-slate-400 text-center">
+                Alerts auto-generated from live IoT telemetry · Click an alert for details
+              </p>
+            </div>
           </div>
-        </div>
         </>
       )}
     </div>

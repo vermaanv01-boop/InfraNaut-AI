@@ -52,21 +52,40 @@ export default function AdminEmailPanel() {
           setSending(false)
           return
         }
-        // Get opted-in users from Supabase
-        const { data: users } = await supabase
-          .from('profiles')
-          .select('id, username, display_name, email_prefs')
-          .limit(500)
-        // Map profiles to { email, name } — email comes from auth.users via a join
-        // Simplified: use emails stored via supabase auth
-        const { data: authUsers } = await supabase.auth.admin?.listUsers?.() || { data: null }
-        const recipients = authUsers?.users?.map(u => ({
-          email: u.email,
-          name: users?.find(p => p.id === u.id)?.display_name || u.email.split('@')[0],
-        })) || []
+        // Use admin RPC to safely get user emails (security definer, admin-only)
+        let profiles = null
+        let profilesError = null
+
+        // Try the admin RPC first (requires add_email_to_profiles.sql migration)
+        const rpcResult = await supabase.rpc('get_all_user_emails')
+        if (!rpcResult.error && rpcResult.data?.length) {
+          profiles = rpcResult.data
+        } else {
+          // Fallback: read email column directly (requires migration)
+          const { data, error } = await supabase
+            .from('profiles')
+            .select('id, email, username, display_name')
+            .not('email', 'is', null)
+            .limit(500)
+          profiles = data
+          profilesError = error
+        }
+
+        if (profilesError || !profiles?.length) {
+          setResult({ ok: false, msg: '⚠️ No recipients found. Run the add_email_to_profiles.sql migration in Supabase, then retry.' })
+          setSending(false)
+          return
+        }
+
+        const recipients = profiles
+          .filter(p => p.email)
+          .map(p => ({
+            email: p.email,
+            name: p.display_name || p.username || p.email.split('@')[0],
+          }))
 
         if (!recipients.length) {
-          setResult({ ok: false, msg: 'No recipients found. Ensure backend has admin access.' })
+          setResult({ ok: false, msg: 'No recipients with email addresses found.' })
           setSending(false)
           return
         }

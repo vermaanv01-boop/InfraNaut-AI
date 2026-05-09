@@ -53,7 +53,15 @@ function AlertItem({ alert, index }) {
 }
 
 function AlertModal({ onClose }) {
-  const getAlerts = useCityStore(s => s.getAlerts)
+  // Subscribe to telemetry slices so the modal updates live while open
+  const trafficLevel = useCityStore(s => s.trafficLevel)
+  const wasteBins    = useCityStore(s => s.wasteBins)
+  const parkingSpots = useCityStore(s => s.parkingSpots)
+  const aqi          = useCityStore(s => s.aqi)
+  const weather      = useCityStore(s => s.weather)
+  const getAlerts    = useCityStore(s => s.getAlerts)
+  // eslint-disable-next-line no-unused-vars
+  const _deps = [trafficLevel, wasteBins, parkingSpots, aqi, weather] // ensure re-render
   const alerts = getAlerts()
 
   return (
@@ -83,7 +91,9 @@ function AlertModal({ onClose }) {
               <div className="text-slate-500 text-xs mt-1">No active alerts at this time</div>
             </div>
           ) : (
-            alerts.map((alert, i) => <AlertItem key={i} alert={alert} index={i} />)
+            alerts.map((alert, i) => (
+              <AlertItem key={`${alert.severity}:${alert.title}`} alert={alert} index={i} />
+            ))
           )}
         </div>
       </div>
