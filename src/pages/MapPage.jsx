@@ -8,6 +8,7 @@ import { useAuthStore } from '../stores/authStore'
 import { usePointsStore } from '../stores/pointsStore'
 import { useCityStore } from '../stores/cityStore'
 import { supabase } from '../lib/supabase'
+import { uploadReportImage } from '../lib/storage'
 import { compressImage, fileToDataUrl } from '../lib/imageCompression'
 import {
   BHOPAL_CENTER, BHOPAL_BOUNDS, MAP_DEFAULT_ZOOM,
@@ -304,13 +305,11 @@ export default function MapPage() {
 
     setError(''); setSubmitting(true)
     try {
-      const formData = new FormData()
-      formData.append('file', imageFile)
-      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001'
-      const uploadRes = await fetch(`${backendUrl}/api/upload/reports`, { method: 'POST', body: formData })
-      if (!uploadRes.ok) throw new Error('Failed to upload image')
-      const uploadData = await uploadRes.json()
-      const publicUrl = uploadData.file.url
+      // Dual-strategy upload: backend first, Supabase Storage fallback
+      const { url: publicUrl, source } = await uploadReportImage(imageFile)
+      if (source === 'supabase') {
+        console.info('[InfraNaut] Image stored via Supabase Storage (backend offline)')
+      }
 
       const { data: report, error: reportErr } = await supabase.from('reports')
         .insert({
@@ -332,7 +331,7 @@ export default function MapPage() {
         setSubmitSuccess(false)
       }, 1500)
     } catch (err) {
-      setError(err.message || 'Submission failed')
+      setError(err.message || 'Submission failed. Please check your connection and try again.')
     } finally {
       setSubmitting(false)
     }

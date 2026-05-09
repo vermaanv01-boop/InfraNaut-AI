@@ -249,7 +249,44 @@ export const useCityStore = create((set, get) => ({
     return alerts
   },
 
-  // Build context string for AI
+  // ── City Health Score (0-100) ─────────────────────────────
+  // Composite wellness metric from all IoT domains
+  getCityHealthScore: () => {
+    const { trafficLevel, aqi, wasteBins, parkingSpots, weather } = get()
+    const scores = []
+
+    // Traffic (100 = no congestion, 0 = all red)
+    scores.push(Math.max(0, 100 - trafficLevel))
+
+    // AQI (100 = AQI 0, 0 = AQI 200+)
+    if (aqi?.value != null) scores.push(Math.max(0, 100 - (aqi.value / 2)))
+
+    // Waste (100 = all normal, 0 = all overflow)
+    if (wasteBins.length > 0) {
+      const normalPct = wasteBins.filter(b => b.status === 'normal').length / wasteBins.length
+      scores.push(normalPct * 100)
+    }
+
+    // Parking (100 = all available, 0 = all full)
+    if (parkingSpots.length > 0) {
+      const total = parkingSpots.reduce((s, p) => s + p.capacity, 0)
+      const avail = parkingSpots.reduce((s, p) => s + p.available, 0)
+      scores.push(total > 0 ? (avail / total) * 100 : 50)
+    }
+
+    // Weather (rain penalty)
+    const w = weather?.current
+    if (w) {
+      const rainPenalty = Math.min(30, (w.precipitation || 0) * 1.5)
+      const heatPenalty = Math.max(0, (w.temperature_2m - 35) * 2)
+      scores.push(Math.max(0, 100 - rainPenalty - heatPenalty))
+    }
+
+    const avg = scores.length ? scores.reduce((a, b) => a + b, 0) / scores.length : 65
+    return Math.round(Math.min(100, Math.max(0, avg)))
+  },
+
+  // Build context string for AI (lean version — agents should prefer buildScopedContext)
   getCityContext: () => {
     const { weather, aqi, parkingSpots, trafficLevel, wasteBins } = get()
     const w = weather?.current
@@ -258,11 +295,13 @@ export const useCityStore = create((set, get) => ({
     if (aqi) ctx += `Air Quality: AQI ${aqi.value} (${aqi.label})\n`
     ctx += `Traffic Congestion: ${trafficLevel}%\n`
     if (parkingSpots.length) {
-      ctx += `Parking:\n`
-      parkingSpots.forEach(p => { ctx += `  • ${p.name}: ${p.available}/${p.capacity} spots (${p.occupancy}% full)\n` })
+      const topSpots = [...parkingSpots].sort((a, b) => b.available - a.available).slice(0, 5)
+      ctx += `Parking (top 5 available):\n`
+      topSpots.forEach(p => { ctx += `  • ${p.name}: ${p.available}/${p.capacity} spots (${p.occupancy}% full)\n` })
     }
     const overflow = wasteBins.filter(b => b.status === 'overflow')
     if (overflow.length) ctx += `Waste Alert: ${overflow.length} bins overflowing\n`
+    ctx += `City Health Score: ${get().getCityHealthScore()}/100\n`
     ctx += `---\n`
     return ctx
   },

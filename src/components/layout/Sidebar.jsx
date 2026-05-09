@@ -7,15 +7,15 @@ import NexoraAvatar from '../nexora/NexoraAvatar'
 import { useAuthStore } from '../../stores/authStore'
 
 const NAV = [
-  { path: '/',            label: 'Dashboard',   Icon: LayoutDashboard },
-  { path: '/map',         label: 'City Map',    Icon: Map },
-  { path: '/chat',        label: 'Community',   Icon: MessageSquare },
-  { path: '/nexora',      label: 'Nexora AI',   Icon: Bot },
-  { path: '/analytics',   label: 'Analytics',   Icon: BarChart2 },
-  { path: '/eco-route',   label: 'Eco Route',   Icon: Leaf },
+  { path: '/', label: 'Dashboard', Icon: LayoutDashboard },
+  { path: '/map', label: 'City Map', Icon: Map },
+  { path: '/chat', label: 'Community', Icon: MessageSquare },
+  { path: '/nexora', label: 'Nexora AI', Icon: Bot },
+  { path: '/analytics', label: 'Analytics', Icon: BarChart2 },
+  { path: '/eco-route', label: 'Eco Route', Icon: Leaf },
   { path: '/leaderboard', label: 'Leaderboard', Icon: Trophy },
-  { path: '/profile',     label: 'Profile',     Icon: User },
-  { path: '/tourism',     label: 'Tourism AI',  Icon: Compass },
+  { path: '/tourism', label: 'Tourism AI', Icon: Compass },
+  { path: '/profile', label: 'Profile', Icon: User },
 ]
 
 export default function Sidebar() {
@@ -42,10 +42,9 @@ export default function Sidebar() {
             to={path}
             end={path === '/'}
             className={({ isActive }) =>
-              `nav-link flex items-center gap-3 px-3 py-2.5 text-sm font-medium transition-all ${
-                isActive
-                  ? 'active text-teal-400 bg-teal-500/10'
-                  : 'text-slate-400 hover:text-slate-200'
+              `nav-link flex items-center gap-3 px-3 py-2.5 text-sm font-medium transition-all ${isActive
+                ? 'active text-teal-400 bg-teal-500/10'
+                : 'text-slate-400 hover:text-slate-200'
               }`
             }
           >

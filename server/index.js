@@ -1,3 +1,4 @@
+require('dotenv').config()
 const express = require('express')
 const http = require('http')
 const { Server } = require('socket.io')
@@ -5,10 +6,14 @@ const cors = require('cors')
 const multer = require('multer')
 const path = require('path')
 const fs = require('fs')
+const emailRoutes = require('./emailRoutes')
 
 const app = express()
 app.use(cors())
 app.use(express.json())
+
+// ── Email API Routes ──────────────────────────────────────────
+app.use('/api/email', emailRoutes)
 
 // ── Multer Configuration ──────────────────────────────────────
 const uploadsDir = path.join(__dirname, 'uploads')

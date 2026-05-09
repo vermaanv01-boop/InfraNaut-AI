@@ -233,3 +233,140 @@
 @media (min-width: 480px) {
   .xs\:inline { display: inline; }
 }
+
+/* ── Phase 8: IOC Visual Polish ───────────────────────────── */
+
+/* Scan-line overlay for IOC panels */
+.ioc-scanline {
+  position: relative;
+  overflow: hidden;
+}
+.ioc-scanline::after {
+  content: '';
+  position: absolute;
+  top: -100%;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, rgba(34,211,238,0.4), transparent);
+  animation: scan-line 4s linear infinite;
+  pointer-events: none;
+}
+@keyframes scan-line {
+  0%   { top: -2px; }
+  100% { top: 100%; }
+}
+
+/* Live data-stream pulse indicator */
+.data-stream {
+  position: relative;
+}
+.data-stream::before {
+  content: '';
+  position: absolute;
+  top: 0; right: 0;
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: #22c55e;
+  animation: data-ping 2s ease-out infinite;
+}
+@keyframes data-ping {
+  0%   { transform: scale(1); opacity: 1; }
+  70%  { transform: scale(2.5); opacity: 0; }
+  100% { transform: scale(1); opacity: 0; }
+}
+
+/* Metric card hover glow */
+.metric-card {
+  transition: box-shadow 0.2s ease, border-color 0.2s ease, transform 0.15s ease;
+}
+.metric-card:hover {
+  box-shadow: 0 0 16px rgba(20, 184, 166, 0.18);
+  transform: translateY(-1px);
+}
+.dark .metric-card:hover {
+  box-shadow: 0 0 20px rgba(20, 184, 166, 0.25);
+}
+
+/* Status blink (critical alerts) */
+.status-blink {
+  animation: status-blink 1.2s step-end infinite;
+}
+@keyframes status-blink {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.3; }
+}
+
+/* Slide-in from right (notification panel) */
+@keyframes slide-in-right {
+  from { opacity: 0; transform: translateX(12px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+.animate-slide-in-right {
+  animation: slide-in-right 0.25s ease-out both;
+}
+
+/* Slide-in from bottom (modal / drawer) */
+@keyframes slide-in-up {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.animate-slide-in-up {
+  animation: slide-in-up 0.3s ease-out both;
+}
+
+/* Number counter flash (points flash) */
+@keyframes number-flash {
+  0%   { color: #14b8a6; transform: scale(1.15); }
+  100% { color: inherit;  transform: scale(1); }
+}
+.number-flash {
+  animation: number-flash 0.5s ease-out;
+}
+
+/* IOC corner accent borders */
+.ioc-corner {
+  position: relative;
+}
+.ioc-corner::before,
+.ioc-corner::after {
+  content: '';
+  position: absolute;
+  width: 10px; height: 10px;
+  border-color: rgba(34,211,238,0.5);
+  border-style: solid;
+}
+.ioc-corner::before {
+  top: 0; left: 0;
+  border-width: 1.5px 0 0 1.5px;
+}
+.ioc-corner::after {
+  bottom: 0; right: 0;
+  border-width: 0 1.5px 1.5px 0;
+}
+
+/* Gradient text utility */
+.text-gradient-teal {
+  background: linear-gradient(135deg, #14b8a6, #06b6d4);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.text-gradient-blue {
+  background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Card hover lift */
+.card-lift {
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+.card-lift:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.10);
+}
+.dark .card-lift:hover {
+  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+}

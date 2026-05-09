@@ -3,7 +3,8 @@ import { useAuthStore } from '../stores/authStore'
 import { usePointsStore } from '../stores/pointsStore'
 import { supabase } from '../lib/supabase'
 import { BADGE_DEFINITIONS, REPORT_CATEGORIES, BHOPAL_WARDS, getUserLevel, getLevelProgress, LEVELS } from '../utils/constants'
-import { Edit2, Save, X, FileText, Zap, Award } from 'lucide-react'
+import { Edit2, Save, X, FileText, Zap, Award, Mail } from 'lucide-react'
+import EmailPreferences from '../components/email/EmailPreferences'
 
 export default function ProfilePage() {
   const { user, profile, updateProfile } = useAuthStore()
@@ -182,6 +183,14 @@ export default function ProfilePage() {
             </div>
           )}
         </div>
+      </div>
+
+      {/* Email Notification Preferences */}
+      <div className="card">
+        <h3 className="text-sm font-semibold text-slate-900 dark:text-white mb-5 flex items-center gap-2">
+          <Mail size={15} className="text-teal-500" /> Email Notifications
+        </h3>
+        <EmailPreferences />
       </div>
     </div>
   )

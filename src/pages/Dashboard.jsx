@@ -94,14 +94,14 @@ function AlertModal({ onClose }) {
 /* ═══════════════════════════════════════════════════════════
    REUSABLE PANEL
    ═══════════════════════════════════════════════════════════ */
-function Panel({ title, children, extra, className = '' }) {
+function Panel({ title, children, extra, className = '', scanline = false }) {
   return (
     <div className={`dashboard-panel mb-4 ${className}`}>
       <div className="flex justify-between items-center mb-1.5 px-1">
         <h3 className="text-[13px] font-medium text-white tracking-wide">{title}</h3>
         {extra}
       </div>
-      <div className="relative bg-[#061121]/70 border border-cyan-900/40 backdrop-blur-sm p-3">
+      <div className={`relative bg-[#061121]/70 border border-cyan-900/40 backdrop-blur-sm p-3 ${scanline ? 'ioc-scanline' : ''}`}>
         {/* Futuristic corners */}
         <div className="absolute top-0 left-0 w-2 h-2 border-t border-l border-cyan-400/60" />
         <div className="absolute top-0 right-0 w-2 h-2 border-t border-r border-cyan-400/60" />
@@ -135,9 +135,11 @@ export default function Dashboard() {
   const trafficLevel = useCityStore(s => s.trafficLevel)
   const parkingSpots = useCityStore(s => s.parkingSpots)
   const wasteBins = useCityStore(s => s.wasteBins)
+  const energyZones = useCityStore(s => s.energyZones)
   const initCity = useCityStore(s => s.initCity)
   const destroyCity = useCityStore(s => s.destroyCity)
   const getAlerts = useCityStore(s => s.getAlerts)
+  const getCityHealthScore = useCityStore(s => s.getCityHealthScore)
 
   const [currentTime, setCurrentTime] = useState(new Date())
   const [showAlerts, setShowAlerts] = useState(false)
@@ -150,9 +152,14 @@ export default function Dashboard() {
 
   const w = weather?.current
   const totalAvail = parkingSpots.reduce((s, p) => s + p.available, 0)
+  const totalCap = parkingSpots.reduce((s, p) => s + p.capacity, 0)
   const overflowBins = wasteBins.filter(b => b.status === 'overflow').length
   const alerts = getAlerts()
   const activeAlerts = alerts.length
+  const healthScore = getCityHealthScore()
+  const gridLoadMW = energyZones.length
+    ? (energyZones.reduce((s, z) => s + (z.currentLoad || 0), 0) / 1000).toFixed(1)
+    : '8.9'
 
   const trafficChartData = useMemo(() => {
     const zones = ['MP Nagar', 'Habibganj', 'Old City', 'Kolar', 'Piplani']
@@ -190,16 +197,25 @@ export default function Dashboard() {
 
       {/* ── TOP BAR ────────────────────────────────────────── */}
       <div className="relative z-10 w-full px-4 py-2 flex items-center justify-between bg-gradient-to-b from-[#0b1426]/90 to-transparent">
-        <div className="text-white font-bold tracking-widest text-sm">Bhopal IOC</div>
-        <div className="flex items-center gap-4 text-[11px] font-mono text-cyan-100">
-          <span>{timeStr}</span>
-          <div className="flex items-center gap-2">
-            <span className="text-amber-400">☀ Day</span>
-            <span className="text-slate-400">Noon</span>
-            <span className="text-slate-400">Dusk</span>
-            <span className="text-slate-400">Night</span>
+        <div className="flex items-center gap-3">
+          <div className="text-white font-bold tracking-widest text-sm">Bhopal IOC</div>
+          <div className="hidden sm:flex items-center gap-1.5 text-[10px] font-mono">
+            <span className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse" />
+            <span className="text-green-400">LIVE</span>
           </div>
-          <span className="font-bold">{w?.temperature_2m ?? '24.5'}°C</span>
+        </div>
+        <div className="flex items-center gap-4 text-[11px] font-mono text-cyan-100">
+          {/* City Health Score */}
+          <div className="hidden sm:flex items-center gap-2 bg-white/5 border border-cyan-500/20 px-3 py-1 rounded-full">
+            <span className="text-[10px] text-slate-400">City Health</span>
+            <span className={`font-bold text-sm ${
+              healthScore >= 70 ? 'text-green-400' :
+              healthScore >= 45 ? 'text-amber-400' : 'text-red-400'
+            }`}>{healthScore}/100</span>
+          </div>
+          <span>{timeStr}</span>
+          <span className="font-bold">{w?.temperature_2m ?? '—'}°C</span>
+          <span className="hidden md:block text-slate-400">AQI {aqi?.value ?? '—'} · {aqi?.label ?? '—'}</span>
         </div>
       </div>
 
@@ -210,22 +226,35 @@ export default function Dashboard() {
           <div className="flex flex-col items-center justify-center -mt-4">
             <button
               onClick={() => setShowAlerts(true)}
-              className="relative w-20 h-20 rounded-full bg-[#1e88e5] border-2 border-[#64b5f6] flex flex-col items-center justify-center shadow-[0_0_20px_rgba(30,136,229,0.7)] hover:shadow-[0_0_30px_rgba(30,136,229,0.9)] transition-all z-20 cursor-pointer"
+              className={`relative w-20 h-20 rounded-full border-2 flex flex-col items-center justify-center shadow-lg hover:shadow-xl transition-all z-20 cursor-pointer ${
+                activeAlerts > 0
+                  ? 'bg-red-600 border-red-400 shadow-red-500/50 hover:shadow-red-500/70'
+                  : 'bg-[#1e88e5] border-[#64b5f6] shadow-[#1e88e5]/50 hover:shadow-[#1e88e5]/70'
+              }`}
             >
-              <span className="text-white font-bold text-sm">Alerts</span>
+              <span className="text-white font-bold text-xs">{activeAlerts}</span>
+              <span className="text-white/80 font-medium text-[9px]">ALERTS</span>
+              {activeAlerts > 0 && (
+                <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-400 rounded-full status-blink" />
+              )}
             </button>
           </div>
 
           <div>
-            <div className="text-xs text-slate-300 font-medium mb-1">Building Mgmt</div>
-            <div className="text-xs text-slate-400">Alerts</div>
-            <div className="text-2xl font-bold text-white mt-1 tracking-wider">{activeAlerts}</div>
+            <div className="text-xs text-slate-300 font-medium mb-1">Parking</div>
+            <div className="text-xs text-slate-400">Available</div>
+            <div className="text-2xl font-bold text-white mt-1 tracking-wider">{totalAvail}</div>
+            <div className="text-[9px] text-slate-500">of {totalCap} total</div>
           </div>
 
           <div>
-            <div className="text-xs text-slate-300 font-medium mb-1">Envir Monitoring</div>
-            <div className="text-xs text-slate-400">Notifications</div>
-            <div className="text-2xl font-bold text-white mt-1 tracking-wider">56</div>
+            <div className="text-xs text-slate-300 font-medium mb-1">City Score</div>
+            <div className="text-xs text-slate-400">Health Index</div>
+            <div className={`text-2xl font-bold mt-1 tracking-wider ${
+              healthScore >= 70 ? 'text-green-400' :
+              healthScore >= 45 ? 'text-amber-400' : 'text-red-400'
+            }`}>{healthScore}</div>
+            <div className="text-[9px] text-slate-500">out of 100</div>
           </div>
 
         </div>
@@ -259,13 +288,13 @@ export default function Dashboard() {
             </div>
           </Panel>
 
-          {/* IoT Status (Replacing Water Quality) */}
-          <Panel title="IoT Status">
+          {/* IoT Status */}
+          <Panel title="IoT Status" scanline>
             <div className="grid grid-cols-2 gap-2 h-24">
               <StatCard icon={Car} label="Congestion" value={`${trafficLevel}%`} color={trafficLevel > 60 ? 'text-red-400' : trafficLevel > 30 ? 'text-amber-400' : 'text-[#64b5f6]'} />
               <StatCard icon={ParkingMeter} label="Spots Avail" value={totalAvail} color="text-[#64b5f6]" />
               <StatCard icon={Trash2} label="Overflows" value={overflowBins} color={overflowBins > 0 ? 'text-red-400' : 'text-[#64b5f6]'} />
-              <StatCard icon={Zap} label="Grid Load" value={<>8.9 <span className="text-[8px]">MW</span></>} color="text-[#64b5f6]" />
+              <StatCard icon={Zap} label="Grid Load" value={<>{gridLoadMW} <span className="text-[8px]">MW</span></>} color="text-[#64b5f6]" />
             </div>
           </Panel>
 

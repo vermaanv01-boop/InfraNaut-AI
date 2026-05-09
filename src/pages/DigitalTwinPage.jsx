@@ -1,11 +1,12 @@
 import { useRef, useState, useEffect, useMemo, Suspense } from 'react'
 import { Canvas, useFrame } from '@react-three/fiber'
 import { OrbitControls, Stars, Text } from '@react-three/drei'
+import { useNavigate } from 'react-router-dom'
 import * as THREE from 'three'
 import { BHOPAL_LANDMARKS } from '../data/bhopalLandmarks'
 import { chatWithRAG } from '../lib/anythingllm'
 import { supabase } from '../lib/supabase'
-import { Send, Loader2, X, Info, Users, Clock, Star, Bot } from 'lucide-react'
+import { Send, Loader2, X, Bot, Navigation, Map, ExternalLink, MapPin, Clock, Users } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 
 function CityCore() {
@@ -118,39 +119,103 @@ function Scene({ selectedId, onSelect }) {
   )
 }
 
-function Panel({ lm, onClose }) {
+function Panel({ lm, onClose, onAskNexora, onViewMap }) {
   if (!lm) return null
-  const cc = { High:'text-red-400', Medium:'text-yellow-400', Low:'text-green-400' }
+  const cc = { High: 'text-red-400', Medium: 'text-yellow-400', Low: 'text-green-400' }
+
+  const handleNavigate = () => {
+    window.open(`https://www.google.com/maps/dir/?api=1&destination=${lm.lat},${lm.lng}&destination_place_id=${encodeURIComponent(lm.name)}`, '_blank')
+  }
+
   return (
-    <div className="absolute top-4 right-4 w-80 bg-slate-900/95 backdrop-blur-xl border border-slate-700/50 rounded-2xl overflow-hidden shadow-2xl z-10">
-      <div className="relative h-40 overflow-hidden">
-        <img src={lm.image} alt={lm.name} className="w-full h-full object-cover" onError={e => e.target.src=`https://placehold.co/320x160/0e7490/fff?text=${encodeURIComponent(lm.shortName)}`} />
-        <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-transparent to-transparent" />
-        <button onClick={onClose} className="absolute top-2 right-2 w-7 h-7 bg-black/60 rounded-full flex items-center justify-center text-slate-300 hover:text-white"><X size={14}/></button>
-        <span className="absolute bottom-2 left-2 text-[10px] px-2 py-0.5 rounded-full font-semibold" style={{backgroundColor:lm.color+'33',color:lm.glowColor,border:`1px solid ${lm.color}55`}}>{lm.category}</span>
+    <div className="absolute top-4 right-4 w-80 bg-slate-900/96 backdrop-blur-xl border border-slate-700/50 rounded-2xl overflow-hidden shadow-2xl z-10 animate-fade-in-up">
+      {/* Image header */}
+      <div className="relative h-44 overflow-hidden">
+        <img
+          src={lm.image} alt={lm.name} className="w-full h-full object-cover"
+          onError={e => { e.target.src = `https://placehold.co/320x176/${lm.color.slice(1)}/fff?text=${encodeURIComponent(lm.shortName)}` }}
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-slate-900/30 to-transparent" />
+        <button
+          onClick={onClose}
+          className="absolute top-2.5 right-2.5 w-7 h-7 bg-black/60 backdrop-blur-sm rounded-full flex items-center justify-center text-slate-300 hover:text-white hover:bg-black/80 transition-colors"
+        >
+          <X size={14} />
+        </button>
+        <span
+          className="absolute top-2.5 left-2.5 text-[10px] px-2 py-0.5 rounded-full font-semibold"
+          style={{ backgroundColor: lm.color + '33', color: lm.glowColor, border: `1px solid ${lm.color}55` }}
+        >
+          {lm.emoji} {lm.category}
+        </span>
+        {/* Landmark name over image */}
+        <div className="absolute bottom-3 left-3 right-3">
+          <h3 className="text-white font-bold text-sm leading-tight drop-shadow-lg">{lm.name}</h3>
+          <div className="flex items-center gap-1.5 mt-1">
+            <MapPin size={9} className="text-cyan-400" />
+            <span className="text-[10px] text-slate-300">{lm.period}</span>
+          </div>
+        </div>
       </div>
-      <div className="p-4">
-        <h3 className="text-white font-bold text-sm mb-1">{lm.name}</h3>
-        <p className="text-slate-400 text-[11px] leading-relaxed mb-3">{lm.description}</p>
-        <div className="grid grid-cols-2 gap-2 mb-3">
-          {[{label:'Daily',value:lm.visitors,color:'text-cyan-400'},{label:'Crowd',value:lm.crowdLevel,color:cc[lm.crowdLevel]},{label:'Peak',value:lm.peakTime,color:'text-white'},{label:'Period',value:lm.period,color:'text-white'}].map(({label,value,color})=>(
-            <div key={label} className="bg-slate-800/60 rounded-lg p-2">
+
+      {/* Content */}
+      <div className="p-3">
+        {/* Stats row */}
+        <div className="grid grid-cols-3 gap-1.5 mb-3">
+          {[
+            { label: 'Daily', value: lm.visitors, color: 'text-cyan-400' },
+            { label: 'Crowd', value: lm.crowdLevel, color: cc[lm.crowdLevel] },
+            { label: 'Peak', value: lm.peakTime.split('–')[0], color: 'text-white' },
+          ].map(({ label, value, color }) => (
+            <div key={label} className="bg-slate-800/60 rounded-lg p-2 text-center">
               <div className="text-[9px] text-slate-500 mb-0.5">{label}</div>
-              <span className={`text-[11px] font-bold ${color}`}>{value}</span>
+              <span className={`text-[10px] font-bold ${color}`}>{value}</span>
             </div>
           ))}
         </div>
-        <div className="mb-2 space-y-1">
-          {lm.facts.map((f,i)=>(
+
+        {/* Description */}
+        <p className="text-slate-400 text-[11px] leading-relaxed mb-3">{lm.description}</p>
+
+        {/* Facts */}
+        <div className="space-y-1 mb-3">
+          {lm.facts.slice(0, 3).map((f, i) => (
             <div key={i} className="flex items-start gap-1.5">
-              <span style={{color:lm.glowColor}} className="text-[10px] mt-0.5 flex-shrink-0">●</span>
+              <span style={{ color: lm.glowColor }} className="text-[10px] mt-0.5 flex-shrink-0">●</span>
               <span className="text-[10px] text-slate-400">{f}</span>
             </div>
           ))}
         </div>
-        <div className="bg-slate-800/40 rounded-lg p-2 border border-slate-700/30">
-          <span className="text-[10px] text-slate-500">Best Time: </span>
+
+        {/* Best time */}
+        <div className="bg-green-500/10 border border-green-500/20 rounded-lg px-2.5 py-1.5 mb-3">
+          <span className="text-[9px] text-slate-500">🗓️ Best Time: </span>
           <span className="text-[10px] font-semibold text-green-400">{lm.bestTime}</span>
+        </div>
+
+        {/* Action Buttons */}
+        <div className="grid grid-cols-3 gap-1.5">
+          <button
+            onClick={handleNavigate}
+            className="flex flex-col items-center gap-1 py-2 bg-blue-600/20 hover:bg-blue-600/40 border border-blue-500/30 rounded-xl transition-colors text-blue-400 hover:text-blue-300"
+          >
+            <Navigation size={14} />
+            <span className="text-[9px] font-semibold">Navigate</span>
+          </button>
+          <button
+            onClick={() => onViewMap(lm)}
+            className="flex flex-col items-center gap-1 py-2 bg-cyan-600/20 hover:bg-cyan-600/40 border border-cyan-500/30 rounded-xl transition-colors text-cyan-400 hover:text-cyan-300"
+          >
+            <Map size={14} />
+            <span className="text-[9px] font-semibold">City Map</span>
+          </button>
+          <button
+            onClick={() => onAskNexora(lm)}
+            className="flex flex-col items-center gap-1 py-2 bg-purple-600/20 hover:bg-purple-600/40 border border-purple-500/30 rounded-xl transition-colors text-purple-400 hover:text-purple-300"
+          >
+            <Bot size={14} />
+            <span className="text-[9px] font-semibold">Ask AI</span>
+          </button>
         </div>
       </div>
     </div>
@@ -238,15 +303,27 @@ function NexoraChat({ trigger }) {
 }
 
 function StatsOverlay() {
+  const totalVisitors = BHOPAL_LANDMARKS.reduce((s, lm) => {
+    const n = parseInt(lm.visitors.replace(/[^\d]/g, '')) || 0
+    return s + n
+  }, 0)
+  const highCount = BHOPAL_LANDMARKS.filter(lm => lm.crowdLevel === 'High').length
+
   return (
     <div className="absolute top-4 left-4 z-10 space-y-3 pointer-events-none">
-      <div className="bg-slate-900/90 backdrop-blur-xl border border-slate-700/50 rounded-xl p-3">
-        <div className="flex items-center gap-2 mb-2">
-          <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse"/>
+      {/* IOC header stats */}
+      <div className="bg-slate-900/92 backdrop-blur-xl border border-slate-700/50 rounded-xl p-3">
+        <div className="flex items-center gap-2 mb-2.5">
+          <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
           <span className="text-[10px] font-bold text-cyan-400 uppercase tracking-widest">Bhopal Digital Twin</span>
         </div>
-        <div className="grid grid-cols-2 gap-2">
-          {[{label:'Landmarks',value:'6',color:'text-cyan-400'},{label:'Daily Visitors',value:'30.5K',color:'text-green-400'},{label:'Avg Crowd',value:'Medium',color:'text-yellow-400'},{label:'Best Season',value:'Oct–Mar',color:'text-purple-400'}].map(s=>(
+        <div className="grid grid-cols-2 gap-1.5">
+          {[
+            { label: 'Landmarks', value: String(BHOPAL_LANDMARKS.length), color: 'text-cyan-400' },
+            { label: 'Daily Visitors', value: `${Math.round(totalVisitors / 1000)}K+`, color: 'text-green-400' },
+            { label: 'High Crowd', value: `${highCount} sites`, color: 'text-red-400' },
+            { label: 'Best Season', value: 'Oct–Mar', color: 'text-purple-400' },
+          ].map(s => (
             <div key={s.label} className="bg-slate-800/60 rounded-lg p-2">
               <div className={`text-sm font-bold ${s.color}`}>{s.value}</div>
               <div className="text-[9px] text-slate-500">{s.label}</div>
@@ -254,42 +331,66 @@ function StatsOverlay() {
           ))}
         </div>
       </div>
-      <div className="bg-slate-900/90 backdrop-blur-xl border border-slate-700/50 rounded-xl p-3">
+
+      {/* Landmark list — scrollable if many */}
+      <div className="bg-slate-900/92 backdrop-blur-xl border border-slate-700/50 rounded-xl p-3 max-h-56 overflow-y-auto">
         <p className="text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-2">Active Landmarks</p>
-        {BHOPAL_LANDMARKS.map(lm=>(
+        {BHOPAL_LANDMARKS.map(lm => (
           <div key={lm.id} className="flex items-center gap-2 mb-1.5">
-            <span className="text-xs">{lm.emoji}</span>
-            <div className="w-2 h-2 rounded-full flex-shrink-0" style={{backgroundColor:lm.color}}/>
-            <span className="text-[10px] text-slate-300 flex-1">{lm.shortName}</span>
-            <span className={`text-[9px] font-semibold ${lm.crowdLevel==='High'?'text-red-400':lm.crowdLevel==='Medium'?'text-yellow-400':'text-green-400'}`}>{lm.crowdLevel}</span>
+            <span className="text-xs flex-shrink-0">{lm.emoji}</span>
+            <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: lm.color }} />
+            <span className="text-[10px] text-slate-300 flex-1 truncate">{lm.shortName}</span>
+            <span className={`text-[9px] font-semibold flex-shrink-0 ${
+              lm.crowdLevel === 'High' ? 'text-red-400' :
+              lm.crowdLevel === 'Medium' ? 'text-yellow-400' : 'text-green-400'
+            }`}>{lm.crowdLevel}</span>
           </div>
         ))}
+      </div>
+
+      {/* Instruction hint */}
+      <div className="bg-slate-900/80 backdrop-blur-md border border-slate-700/30 rounded-lg px-3 py-2">
+        <p className="text-[9px] text-slate-500">💡 Click a landmark for details & navigation</p>
       </div>
     </div>
   )
 }
 
 export default function DigitalTwinPage() {
+  const navigate = useNavigate()
   const [selected, setSelected] = useState(null)
   const [aiTrigger, setAiTrigger] = useState(null)
 
-  const handleSelect = (lm) => { setSelected(lm); setAiTrigger({...lm, _t:Date.now()}) }
+  const handleSelect = (lm) => {
+    setSelected(lm)
+    setAiTrigger({ ...lm, _t: Date.now() })
+  }
+
+  const handleViewMap = () => {
+    navigate('/app/map')
+  }
+
+  const handleAskNexora = (lm) => {
+    setAiTrigger({ ...lm, _t: Date.now() })
+    setSelected(null)
+  }
 
   return (
-    <div className="relative bg-slate-950 overflow-hidden" style={{margin:'-1rem', height:'calc(100vh - 48px)'}}>
-      <Canvas camera={{position:[0,3,9],fov:60}} dpr={[1,2]} gl={{antialias:true}}>
+    <div className="relative bg-slate-950 overflow-hidden" style={{ margin: '-1rem', height: 'calc(100vh - 48px)' }}>
+      <Canvas camera={{ position: [0, 3, 9], fov: 60 }} dpr={[1, Math.min(window.devicePixelRatio, 1.5)]} gl={{ antialias: true }}>
         <Suspense fallback={null}>
-          <Scene selectedId={selected?.id} onSelect={handleSelect}/>
+          <Scene selectedId={selected?.id} onSelect={handleSelect} />
         </Suspense>
       </Canvas>
-      <StatsOverlay/>
-      <Panel lm={selected} onClose={()=>setSelected(null)}/>
-      <NexoraChat trigger={aiTrigger}/>
-      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10 pointer-events-none">
-        <div className="bg-slate-900/80 backdrop-blur-md border border-slate-700/40 rounded-full px-4 py-1.5">
-          <span className="text-[10px] text-slate-400">Click a landmark · Drag to orbit · Scroll to zoom</span>
-        </div>
-      </div>
+
+      <StatsOverlay />
+      <Panel
+        lm={selected}
+        onClose={() => setSelected(null)}
+        onAskNexora={handleAskNexora}
+        onViewMap={handleViewMap}
+      />
+      <NexoraChat trigger={aiTrigger} />
     </div>
   )
 }
