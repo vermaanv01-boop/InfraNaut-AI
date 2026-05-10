@@ -6,7 +6,15 @@ require('dotenv').config()
 const { Resend } = require('resend')
 const templates = require('./emailTemplates')
 
-const resend = new Resend(process.env.RESEND_API_KEY)
+// ── Startup validation ───────────────────────────────────
+const RESEND_KEY = process.env.RESEND_API_KEY
+if (!RESEND_KEY || RESEND_KEY.includes('YOUR_RESEND')) {
+  console.warn('[EmailService] ⚠️  RESEND_API_KEY is missing or a placeholder. Emails will NOT send.')
+} else {
+  console.log('[EmailService] ✅ RESEND_API_KEY loaded. FROM:', process.env.EMAIL_FROM || 'default')
+}
+
+const resend = new Resend(RESEND_KEY)
 const FROM = process.env.EMAIL_FROM || 'InfraNaut AI <onboarding@resend.dev>'
 
 // ── In-memory email queue (simple, production: use Bull/Redis) ──
@@ -30,18 +38,23 @@ function isDuplicate(key) {
 }
 
 // ── Core send function ───────────────────────────────────────
+// Supports Resend SDK v2 response format: { data: { id }, error }
 async function sendEmail({ to, subject, html, retries = 0 }) {
   try {
     const result = await resend.emails.send({ from: FROM, to, subject, html })
-    console.log(`[Email] ✅ Sent to ${to}: ${subject}`)
-    return { success: true, id: result.id }
+    // Resend v2 SDK returns { data, error } — check both
+    if (result?.error) throw new Error(result.error.message || 'Resend API error')
+    const emailId = result?.data?.id || result?.id
+    console.log(`[EmailService] ✅ Sent "${subject}" to ${to} | id: ${emailId}`)
+    return { success: true, id: emailId }
   } catch (err) {
     if (retries < MAX_RETRIES) {
-      console.warn(`[Email] Retry ${retries + 1} for ${to}`)
-      await new Promise(r => setTimeout(r, 2000 * (retries + 1)))
+      const delay = 2000 * (retries + 1)
+      console.warn(`[EmailService] ↻ Retry ${retries + 1}/${MAX_RETRIES} for ${to} in ${delay}ms: ${err.message}`)
+      await new Promise(r => setTimeout(r, delay))
       return sendEmail({ to, subject, html, retries: retries + 1 })
     }
-    console.error(`[Email] ❌ Failed after ${MAX_RETRIES} retries: ${to}`, err.message)
+    console.error(`[EmailService] ❌ Failed after ${MAX_RETRIES} retries for ${to}: ${err.message}`)
     return { success: false, error: err.message }
   }
 }
@@ -114,13 +127,15 @@ exports.sendEventReminder = async (user, event) => {
 }
 
 exports.sendAnnouncement = async (toList, subject, message, opts = {}) => {
-  const results = []
+  // Enqueue all, then await all to return proper results/errors
+  const jobs = []
   for (const user of toList) {
     const { html } = templates.announcementEmail({ name: user.name || 'User', subject, message, ...opts })
-    results.push(enqueue({ to: user.email, subject, html }))
-    await new Promise(r => setTimeout(r, 200)) // spread sends
+    jobs.push(enqueue({ to: user.email, subject, html }))
+    // Stagger sends to stay within rate limits (200ms gap)
+    await new Promise(r => setTimeout(r, 200))
   }
-  return results
+  return Promise.all(jobs)
 }
 
 exports.sendPasswordReset = async ({ email, name, resetUrl }) => {

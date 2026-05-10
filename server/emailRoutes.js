@@ -6,11 +6,16 @@ const express = require('express')
 const router = express.Router()
 const emailService = require('./emailService')
 
-// ── Simple auth guard (validate x-api-key header) ────────────
-const API_KEY = process.env.EMAIL_API_KEY || 'infranaut-email-secret'
+// ── Auth guard — must match EMAIL_API_KEY in server/.env ─────
+// IMPORTANT: Default MUST match the value in server/.env
+const API_KEY = process.env.EMAIL_API_KEY || 'infranaut-email-secret-2025'
+
 function requireKey(req, res, next) {
   const key = req.headers['x-api-key'] || req.body?.apiKey
-  if (key !== API_KEY) return res.status(401).json({ error: 'Unauthorized' })
+  if (!key || key !== API_KEY) {
+    console.warn(`[EmailRoutes] ❌ Unauthorized request to ${req.path} — key mismatch`)
+    return res.status(401).json({ error: 'Unauthorized: Invalid or missing API key' })
+  }
   next()
 }
 
