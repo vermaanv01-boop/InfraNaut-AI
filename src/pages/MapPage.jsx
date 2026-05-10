@@ -9,7 +9,7 @@ import { usePointsStore } from '../stores/pointsStore'
 import { useCityStore } from '../stores/cityStore'
 import { supabase } from '../lib/supabase'
 import { uploadReportImage } from '../lib/storage'
-import { compressImage, fileToDataUrl } from '../lib/imageCompression'
+import { compressImage, fileToDataUrl, validateImageFile } from '../lib/imageCompression'
 import {
   BHOPAL_CENTER, BHOPAL_BOUNDS, MAP_DEFAULT_ZOOM,
   MAP_MIN_ZOOM, MAP_MAX_ZOOM, REPORT_CATEGORIES, BHOPAL_WARDS
@@ -265,6 +265,7 @@ export default function MapPage() {
   const [imageFile, setImageFile] = useState(null)
   const [imagePreview, setImagePreview] = useState(null)
   const [submitting, setSubmitting] = useState(false)
+  const [uploadProgress, setUploadProgress] = useState(0)
   const [error, setError] = useState('')
   const [submitSuccess, setSubmitSuccess] = useState(false)
   const fileRef = useRef()
@@ -285,9 +286,12 @@ export default function MapPage() {
     const file = e.target.files?.[0]
     if (!file) return
     setError('')
+
+    // Fast validation before attempting compression
+    const { valid, error: validErr } = validateImageFile(file)
+    if (!valid) { setError(validErr); return }
+
     try {
-      if (!file.type.startsWith('image/')) { setError('Please select an image file (jpg, png, etc.)'); return }
-      if (file.size > 30 * 1024 * 1024) { setError('Image too large. Max 30MB.'); return }
       const compressed = await compressImage(file)
       const preview = await fileToDataUrl(compressed)
       setImageFile(compressed)
@@ -303,13 +307,18 @@ export default function MapPage() {
     if (!form.description.trim()) { setError('Please describe the issue'); return }
     if (!imageFile) { setError('Photo proof is required.'); return }
 
-    setError(''); setSubmitting(true)
+    setError(''); setSubmitting(true); setUploadProgress(0)
     try {
-      // Dual-strategy upload: backend first, Supabase Storage fallback
-      const { url: publicUrl, source } = await uploadReportImage(imageFile)
+      // Dual-strategy upload with progress feedback
+      const { url: publicUrl, source } = await uploadReportImage(
+        imageFile,
+        (pct) => setUploadProgress(pct)
+      )
       if (source === 'supabase') {
-        console.info('[InfraNaut] Image stored via Supabase Storage (backend offline)')
+        console.info('[MapPage] Image stored via Supabase Storage (backend offline)')
       }
+
+      setUploadProgress(100)
 
       const { data: report, error: reportErr } = await supabase.from('reports')
         .insert({
@@ -328,10 +337,12 @@ export default function MapPage() {
         setShowForm(false); setPinLocation(null)
         setForm({ category: 'garbage', description: '', zone: BHOPAL_WARDS[0] })
         setImageFile(null); setImagePreview(null)
-        setSubmitSuccess(false)
+        setSubmitSuccess(false); setUploadProgress(0)
       }, 1500)
     } catch (err) {
+      console.error('[MapPage] Report submit error:', err)
       setError(err.message || 'Submission failed. Please check your connection and try again.')
+      setUploadProgress(0)
     } finally {
       setSubmitting(false)
     }
@@ -660,15 +671,34 @@ export default function MapPage() {
                   </p>
                 )}
 
+                {/* Upload progress bar — visible during submission */}
+                {submitting && uploadProgress > 0 && uploadProgress < 100 && (
+                  <div className="space-y-1">
+                    <div className="flex justify-between text-[10px] text-slate-500">
+                      <span>Uploading photo...</span>
+                      <span>{uploadProgress}%</span>
+                    </div>
+                    <div className="w-full h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-gradient-to-r from-primary-500 to-teal-400 rounded-full transition-all duration-300"
+                        style={{ width: `${uploadProgress}%` }}
+                      />
+                    </div>
+                  </div>
+                )}
+
                 <button
                   type="submit"
                   className="btn-primary w-full justify-center text-xs py-2.5"
                   disabled={submitting || !pinLocation}
                 >
                   {submitting ? <Loader2 size={14} className="animate-spin" /> : <MapPin size={14} />}
-                  {submitting ? 'Submitting...' : !pinLocation ? '← Pin location on map first' : 'Submit & Earn 10 Points'}
+                  {submitting
+                    ? (uploadProgress > 0 ? `Uploading... ${uploadProgress}%` : 'Preparing...')
+                    : !pinLocation ? '← Pin location on map first' : 'Submit & Earn 10 Points'}
                 </button>
               </form>
+
             )}
           </div>
         )}

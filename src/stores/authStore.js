@@ -66,13 +66,30 @@ export const useAuthStore = create((set, get) => ({
   signIn: async (email, password) => {
     const { data, error } = await supabase.auth.signInWithPassword({ email, password })
     if (error) throw error
-    // Fire login alert email (fire-and-forget, never blocks)
+
+    // Fire login alert email (fire-and-forget — never blocks sign-in)
+    // NOTE: profile may not be in store yet at this point, so we fetch
+    // it directly rather than relying on get().profile which may be null.
     if (data?.user) {
-      const profile = get().profile
-      triggerLoginEmail(
-        { email, name: profile?.display_name || profile?.username, email_prefs: profile?.email_prefs },
-        { device: navigator?.userAgent?.split(' ').slice(-2).join(' ') || 'Web Browser' }
-      ).catch(() => {})
+      supabase
+        .from('profiles')
+        .select('display_name, username, email_prefs')
+        .eq('id', data.user.id)
+        .single()
+        .then(({ data: profile }) => {
+          triggerLoginEmail(
+            {
+              email,
+              name: profile?.display_name || profile?.username || email.split('@')[0],
+              email_prefs: profile?.email_prefs,
+            },
+            { device: navigator?.userAgent?.slice(-60) || 'Web Browser' }
+          ).then(r => {
+            if (r?.success) console.info('[Auth] Login email queued.')
+            else if (r?.skipped) console.info('[Auth] Login email skipped (user preference).')
+          }).catch(() => {}) // Never block login for email failures
+        })
+        .catch(() => {})
     }
     return data
   },
@@ -85,11 +102,19 @@ export const useAuthStore = create((set, get) => ({
     })
     if (error) throw error
 
-    // If auto-login succeeded, update zone
+    // If auto-login succeeded, update zone and fire welcome email
     if (data.session && data.user) {
-      await supabase.from('profiles').update({ zone }).eq('id', data.user.id)
-      // Send welcome email (fire-and-forget)
-      triggerWelcomeEmail({ email, name: username }).catch(() => {})
+      try {
+        await supabase.from('profiles').update({ zone }).eq('id', data.user.id)
+      } catch (profileErr) {
+        console.warn('[Auth] Profile zone update failed:', profileErr.message)
+      }
+      // Fire welcome email (fire-and-forget — username is known at signup time)
+      triggerWelcomeEmail({ email, name: username })
+        .then(r => {
+          if (r?.success) console.info('[Auth] Welcome email queued.')
+        })
+        .catch(() => {})
     }
     return data
   },

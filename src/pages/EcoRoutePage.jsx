@@ -11,7 +11,16 @@ import { Leaf, MapPin, Loader2, Save, CheckCircle2, History, Trash2, X } from 'l
 export default function EcoRoutePage() {
   const { user } = useAuthStore()
   const { awardPoints } = usePointsStore()
-  const getCityContext = useCityStore(s => s.getCityContext)
+  
+  // Pull full store slices — needed so AI gets live telemetry
+  const initCity    = useCityStore(s => s.initCity)
+  const destroyCity = useCityStore(s => s.destroyCity)
+  const weather      = useCityStore(s => s.weather)
+  const trafficLevel = useCityStore(s => s.trafficLevel)
+  const aqi          = useCityStore(s => s.aqi)
+  const parkingSpots = useCityStore(s => s.parkingSpots)
+  const wasteBins    = useCityStore(s => s.wasteBins)
+
   const [origin, setOrigin] = useState('')
   const [destination, setDestination] = useState('')
   const [suggestion, setSuggestion] = useState('')
@@ -21,6 +30,15 @@ export default function EcoRoutePage() {
   const [loadingSaved, setLoadingSaved] = useState(true)
   const [error, setError] = useState('')
   const [showHistory, setShowHistory] = useState(false)
+
+  // ── CRITICAL FIX: Init city telemetry on mount ─────────────
+  // Without this, weather/traffic/aqi are empty and the AI
+  // gets no live city context to base route suggestions on.
+  useEffect(() => {
+    initCity()
+    return () => destroyCity()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const loadSavedRoutes = useCallback(async () => {
     setLoadingSaved(true)
@@ -34,7 +52,7 @@ export default function EcoRoutePage() {
       if (fetchErr) throw fetchErr
       setSavedRoutes(data || [])
     } catch (err) {
-      console.error('Failed to load saved routes:', err)
+      console.error('[EcoRoute] Failed to load saved routes:', err)
     } finally {
       setLoadingSaved(false)
     }
@@ -55,15 +73,31 @@ export default function EcoRoutePage() {
     setSuggestion('')
     setSaved(false)
     try {
-      const cityContext = getCityContext()
+      // FIXED: Pass full cityState object (not bare string) so the
+      // agent router selects the eco-route prompt and injects live data
+      const cityState = { weather, trafficLevel, aqi, parkingSpots, wasteBins }
+
       const result = await nexoraCompletion([{
         role: 'user',
         content: `I'm in Bhopal and want to travel from "${origin}" to "${destination}". Please suggest the most eco-friendly route options. Compare: walking, cycling, auto-rickshaw, and bus. For each option give: estimated time, approximate CO₂ emissions, and a brief reason. Use the live traffic data to adjust recommendations. Format with clear sections. End with your top recommendation.`
-      }], 600, cityContext)
+      }], 600, cityState)
+
+      if (!result || result.trim() === '') {
+        throw new Error('No response from AI. Please check your OpenRouter API key in .env')
+      }
       setSuggestion(result)
     } catch (err) {
-      console.error('Eco route error:', err)
-      setError('Failed to get suggestion. Please try again.')
+      console.error('[EcoRoute] AI error:', err)
+      // Provide actionable error messages instead of generic failures
+      if (err.message?.includes('401') || err.message?.includes('API key')) {
+        setError('AI authentication failed — please check VITE_OPENROUTER_API_KEY in your .env file.')
+      } else if (err.message?.includes('429')) {
+        setError('Rate limit reached. Please wait a moment and try again.')
+      } else if (err.message?.includes('No response')) {
+        setError(err.message)
+      } else {
+        setError('Failed to get suggestion. Check your connection and OpenRouter API key.')
+      }
     } finally {
       setLoading(false)
     }
