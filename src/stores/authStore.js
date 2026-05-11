@@ -35,23 +35,32 @@ export const useAuthStore = create((set, get) => ({
   isOperator: () => isOperatorRole(get().profile?.role),
 
   initialize: async () => {
-    const { data: { session } } = await supabase.auth.getSession()
-    if (session?.user) {
-      set({ user: session.user })
-      await get().fetchProfile(session.user.id)
-    }
-    set({ loading: false, initialized: true })
-
-    // Store unsubscribe to prevent leaks
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
       if (session?.user) {
         set({ user: session.user })
         await get().fetchProfile(session.user.id)
-      } else {
-        set({ user: null, profile: null })
       }
-    })
-    set({ _authSub: subscription })
+    } catch (err) {
+      console.warn('[Auth] Initialization error:', err)
+    } finally {
+      set({ loading: false, initialized: true })
+    }
+
+    // Store unsubscribe to prevent leaks
+    try {
+      const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+        if (session?.user) {
+          set({ user: session.user })
+          await get().fetchProfile(session.user.id).catch(() => {})
+        } else {
+          set({ user: null, profile: null })
+        }
+      })
+      set({ _authSub: subscription })
+    } catch (err) {
+      console.warn('[Auth] Auth listener setup failed:', err)
+    }
   },
 
   fetchProfile: async (userId) => {
@@ -67,10 +76,9 @@ export const useAuthStore = create((set, get) => ({
     const { data, error } = await supabase.auth.signInWithPassword({ email, password })
     if (error) throw error
 
-    // Fire login alert email (fire-and-forget — never blocks sign-in)
-    // NOTE: profile may not be in store yet at this point, so we fetch
-    // it directly rather than relying on get().profile which may be null.
     if (data?.user) {
+      set({ user: data.user })
+
       supabase
         .from('profiles')
         .select('display_name, username, email_prefs')
@@ -87,7 +95,7 @@ export const useAuthStore = create((set, get) => ({
           ).then(r => {
             if (r?.success) console.info('[Auth] Login email queued.')
             else if (r?.skipped) console.info('[Auth] Login email skipped (user preference).')
-          }).catch(() => {}) // Never block login for email failures
+          }).catch(() => {})
         })
         .catch(() => {})
     }
@@ -104,18 +112,24 @@ export const useAuthStore = create((set, get) => ({
 
     // If auto-login succeeded, update zone and fire welcome email
     if (data.session && data.user) {
+      set({ user: data.user })
       try {
         await supabase.from('profiles').update({ zone }).eq('id', data.user.id)
       } catch (profileErr) {
         console.warn('[Auth] Profile zone update failed:', profileErr.message)
       }
-      // Fire welcome email (fire-and-forget — username is known at signup time)
       triggerWelcomeEmail({ email, name: username })
         .then(r => {
           if (r?.success) console.info('[Auth] Welcome email queued.')
         })
         .catch(() => {})
     }
+
+    // Email confirmation required — let the caller know
+    if (data.user && !data.session) {
+      return { user: data.user, session: null, confirmationRequired: true }
+    }
+
     return data
   },
 
@@ -129,6 +143,13 @@ export const useAuthStore = create((set, get) => ({
     } finally {
       set({ user: null, profile: null, _authSub: null })
     }
+  },
+
+  resetPassword: async (email) => {
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/auth?mode=reset`,
+    })
+    if (error) throw error
   },
 
   updateProfile: async (updates) => {

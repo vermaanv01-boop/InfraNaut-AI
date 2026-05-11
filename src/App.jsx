@@ -34,6 +34,9 @@ function PageLoader() {
 // ── Auth guard ────────────────────────────────────────────
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuthStore()
+  // If user is authenticated, render immediately regardless of loading state
+  if (user) return children
+  // Still initializing - show spinner (but don't block if user is already set)
   if (loading) return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex items-center justify-center">
       <div className="flex flex-col items-center gap-3">
@@ -42,7 +45,8 @@ function ProtectedRoute({ children }) {
       </div>
     </div>
   )
-  return user ? children : <Navigate to="/auth" replace />
+  // Not authenticated - redirect to login
+  return <Navigate to="/auth" replace />
 }
 
 export default function App() {

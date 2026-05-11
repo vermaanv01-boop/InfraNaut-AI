@@ -8,8 +8,29 @@ const path = require('path')
 const fs = require('fs')
 const emailRoutes = require('./emailRoutes')
 
+// ── Startup Validation ───────────────────────────────────
+const REQUIRED_ENV = ['RESEND_API_KEY', 'EMAIL_API_KEY']
+const OPTIONAL_ENV = ['EMAIL_FROM', 'FRONTEND_URL', 'PORT']
+console.log('\n══ InfraNaut AI Server ══')
+REQUIRED_ENV.forEach(k => {
+  if (!process.env[k]) {
+    console.warn(`  ⚠️  [MISSING] ${k} — some features will not work`)
+  } else {
+    console.log(`  ✓  ${k}: set`)
+  }
+})
+OPTIONAL_ENV.forEach(k => {
+  console.log(`  ${process.env[k] ? '✓' : '□'} ${k}: ${process.env[k] || '(default)'}`) 
+})
+console.log('')
+
+// ── CORS ────────────────────────────────────────────
+const FRONTEND_ORIGIN = process.env.FRONTEND_URL || 'http://localhost:5174'
 const app = express()
-app.use(cors())
+app.use(cors({
+  origin: [FRONTEND_ORIGIN, 'http://localhost:5173', 'http://localhost:5174', 'http://localhost:3000'],
+  credentials: true,
+}))
 app.use(express.json())
 
 // ── Email API Routes ──────────────────────────────────────────
@@ -63,22 +84,26 @@ app.use('/uploads', express.static(uploadsDir))
 app.post('/api/upload/:type', upload.single('file'), (req, res) => {
   try {
     if (!req.file) {
-      return res.status(400).json({ error: 'No file uploaded' })
+      return res.status(400).json({ error: 'No file uploaded. Ensure FormData field is named "file".' })
     }
-    const fileUrl = `${req.protocol}://${req.get('host')}/uploads/${req.params.type}/${req.file.filename}`
+    // Use X-Forwarded-Proto to correctly generate https:// URLs behind proxies
+    const protocol = req.headers['x-forwarded-proto'] || req.protocol
+    const host = req.headers['x-forwarded-host'] || req.get('host')
+    const fileUrl = `${protocol}://${host}/uploads/${req.params.type}/${req.file.filename}`
+    console.log(`[Upload] ✅ ${req.params.type}/${req.file.filename} (${(req.file.size/1024).toFixed(1)}KB)`)
     res.json({
       success: true,
       file: {
-        url: fileUrl,
-        filename: req.file.filename,
+        url:          fileUrl,
+        filename:     req.file.filename,
         originalName: req.file.originalname,
-        mimetype: req.file.mimetype,
-        size: req.file.size,
+        mimetype:     req.file.mimetype,
+        size:         req.file.size,
       },
     })
   } catch (err) {
-    console.error('Upload error:', err)
-    res.status(500).json({ error: 'Upload failed' })
+    console.error('[Upload] Error:', err)
+    res.status(500).json({ error: 'Upload failed', details: err.message })
   }
 })
 
